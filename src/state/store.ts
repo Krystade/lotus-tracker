@@ -444,3 +444,8 @@ export const useStore = create<StoreState>()(
     },
   ),
 );
+
+// Dev-only: expose the store so the Playwright harness can set up scenarios.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __store: typeof useStore }).__store = useStore;
+}

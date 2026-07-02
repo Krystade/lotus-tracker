@@ -11,7 +11,7 @@ interface Props {
   onOpenDetail: (playerId: string) => void;
 }
 
-const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 15 };
+const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 85 };
 const DRAG_THRESHOLD = 6;
 
 const clamp = (v: number, lo: number, hi: number) =>
