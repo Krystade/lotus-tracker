@@ -82,30 +82,37 @@ input {
   display: block;
 }
 
-.tile__zone {
+/* Discrete +/- hit areas near each edge; the middle (the number) is inert. */
+.tile__adj {
   position: absolute;
-  top: 0;
-  height: 100%;
-  width: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32%;
+  height: 62%;
   border: none;
   background: transparent;
   display: flex;
   align-items: center;
-  justify-content: center;
   color: currentColor;
+  touch-action: manipulation;
+  z-index: 1;
 }
 
-.tile__zone--minus {
+.tile__adj--minus {
   left: 0;
+  justify-content: flex-start;
+  padding-left: 7%;
 }
-.tile__zone--plus {
+.tile__adj--plus {
   right: 0;
+  justify-content: flex-end;
+  padding-right: 7%;
 }
 
 .tile__sign {
   font-size: 3rem;
   font-weight: 800;
-  opacity: 0.28;
+  opacity: 0.34;
   pointer-events: none;
 }
 
@@ -134,11 +141,13 @@ input {
   opacity: 0.85;
 }
 
+/* TAX and ⋯ live on the tile's OUTER edge (content-bottom, nearest the player)
+   so they never collide with the center hex/seam. */
 .tile__tax {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 2;
+  bottom: 12px;
+  left: 14px;
+  z-index: 4;
   background: rgba(0, 0, 0, 0.22);
   color: currentColor;
   border: none;
@@ -151,24 +160,22 @@ input {
 
 .tile__more {
   position: absolute;
-  top: 8px;
-  right: 12px;
-  z-index: 2;
+  bottom: 8px;
+  right: 14px;
+  z-index: 4;
   background: transparent;
   border: none;
   color: currentColor;
   font-size: 1.4rem;
   opacity: 0.6;
   line-height: 1;
-  padding: 4px 8px;
+  padding: 4px 10px;
 }
 
 .tile__pill {
   position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
+  transform: translate(-50%, -50%);
+  z-index: 3;
   display: flex;
   align-items: stretch;
   gap: 0;
@@ -178,6 +185,12 @@ input {
   border-radius: 12px;
   overflow: hidden;
   font-weight: 800;
+  touch-action: none;
+}
+
+.tile__pill--dragging {
+  opacity: 0.92;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
 .tile__pill-turn {

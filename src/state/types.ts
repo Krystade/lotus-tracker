@@ -25,6 +25,13 @@ export interface CounterSet {
   custom: CustomCounter[];
 }
 
+/** Position of a draggable element within a tile, as % of the tile's own
+ *  (pre-rotation) content box. */
+export interface TilePos {
+  x: number;
+  y: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -34,6 +41,8 @@ export interface Player {
   /** Commander combat damage taken, keyed by the id of the opponent dealing it. */
   commanderDamage: Record<string, number>;
   eliminated: boolean;
+  /** Custom turn-timer position for this seat; remembered across turns. */
+  timerPos?: TilePos;
 }
 
 export interface Placement {

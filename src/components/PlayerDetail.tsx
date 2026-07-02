@@ -20,10 +20,10 @@ interface Props {
 }
 
 export function PlayerDetail({ playerId, onClose }: Props) {
-  const player = useStore((s) => s.game.players.find((p) => p.id === playerId));
-  const others = useStore((s) =>
-    s.game.players.filter((p) => p.id !== playerId),
-  );
+  // Select the stable players array; deriving player/others via find/filter
+  // inside the selector would return a new reference each render and trigger an
+  // infinite useSyncExternalStore loop.
+  const players = useStore((s) => s.game.players);
   const adjustCounter = useStore((s) => s.adjustCounter);
   const bumpTax = useStore((s) => s.bumpTax);
   const adjustCommanderDamage = useStore((s) => s.adjustCommanderDamage);
@@ -34,6 +34,9 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const toggleEliminated = useStore((s) => s.toggleEliminated);
 
   const [lifeInput, setLifeInput] = useState("");
+
+  const player = players.find((p) => p.id === playerId);
+  const others = players.filter((p) => p.id !== playerId);
 
   if (!player) return null;
 

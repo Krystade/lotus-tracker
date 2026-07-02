@@ -1,14 +1,34 @@
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useStore } from "../state/store";
 import { useHoldRepeat } from "../hooks/useHoldRepeat";
 import { formatClock } from "../util/format";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
-import type { Placement } from "../state/types";
+import type { Placement, Rotation, TilePos } from "../state/types";
 
 interface Props {
   placement: Placement;
   onOpenDetail: (playerId: string) => void;
+}
+
+const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 15 };
+const DRAG_THRESHOLD = 6;
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, v));
+
+/** Convert a screen-space drag delta into the tile's own (pre-rotation) axes. */
+function screenToLocal(rot: Rotation, dx: number, dy: number): [number, number] {
+  switch (rot) {
+    case 90:
+      return [dy, -dx];
+    case 180:
+      return [-dx, -dy];
+    case 270:
+      return [-dy, dx];
+    default:
+      return [dx, dy];
+  }
 }
 
 export function PlayerTile({ placement, onOpenDetail }: Props) {
@@ -19,9 +39,16 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
   const adjustLife = useStore((s) => s.adjustLife);
   const passTurn = useStore((s) => s.passTurn);
+  const setTimerPos = useStore((s) => s.setTimerPos);
 
-  const minus = useHoldRepeat(() => adjustLife(pid, -1));
-  const plus = useHoldRepeat(() => adjustLife(pid, +1));
+  const contentRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ sx: number; sy: number; base: TilePos; moved: boolean } | null>(
+    null,
+  );
+  const [dragPos, setDragPos] = useState<TilePos | null>(null);
+
+  const minus = useHoldRepeat((n) => adjustLife(pid, n), -1, -10);
+  const plus = useHoldRepeat((n) => adjustLife(pid, n), 1, 10);
 
   if (!player) return null;
 
@@ -30,6 +57,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const poisonDead = isPoisonLethal(player.counters.poison);
   const cmdrDead = isCommanderDamageLethal(player.commanderDamage);
   const lethal = player.life <= 0 || poisonDead || cmdrDead;
+  const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
 
   const contentStyle: CSSProperties = {
     transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
@@ -44,6 +72,39 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
     color: textOn(player.color),
   };
 
+  // Turn pill: a plain tap passes the turn; dragging repositions it (remembered
+  // per player). Movement past a small threshold counts as a drag, not a tap.
+  const onPillDown = (e: PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { sx: e.clientX, sy: e.clientY, base: pillPos, moved: false };
+  };
+  const onPillMove = (e: PointerEvent) => {
+    const st = drag.current;
+    const el = contentRef.current;
+    if (!st || !el) return;
+    const dx = e.clientX - st.sx;
+    const dy = e.clientY - st.sy;
+    if (!st.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    st.moved = true;
+    const [lx, ly] = screenToLocal(placement.rotation, dx, dy);
+    setDragPos({
+      x: clamp(st.base.x + (lx / el.offsetWidth) * 100, 8, 92),
+      y: clamp(st.base.y + (ly / el.offsetHeight) * 100, 8, 92),
+    });
+  };
+  const onPillUp = (e: PointerEvent) => {
+    e.stopPropagation();
+    const st = drag.current;
+    drag.current = null;
+    if (st?.moved && dragPos) {
+      setTimerPos(pid, dragPos);
+    } else if (st) {
+      passTurn();
+    }
+    setDragPos(null);
+  };
+
   return (
     <div
       className={`tile${player.eliminated ? " tile--out" : ""}${
@@ -51,25 +112,23 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
       }`}
       style={tileStyle}
     >
-      <div className="tile__content" style={contentStyle}>
+      <div className="tile__content" ref={contentRef} style={contentStyle}>
         <button
-          className="tile__zone tile__zone--minus"
-          aria-label="minus one life"
+          className="tile__adj tile__adj--minus"
+          aria-label="decrease life"
           {...minus}
         >
           <span className="tile__sign">–</span>
         </button>
         <button
-          className="tile__zone tile__zone--plus"
-          aria-label="plus one life"
+          className="tile__adj tile__adj--plus"
+          aria-label="increase life"
           {...plus}
         >
           <span className="tile__sign">+</span>
         </button>
 
-        <div className="tile__life" aria-live="polite">
-          {player.life}
-        </div>
+        <div className="tile__life">{player.life}</div>
 
         {lethal && <div className="tile__skull">☠</div>}
 
@@ -91,10 +150,18 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
 
         {isActive && timerEnabled && (
           <button
-            className={`tile__pill${turn.expired ? " tile__pill--expired" : ""}`}
-            style={{ fontSize: `calc(0.95rem * ${scale})` }}
-            onClick={() => passTurn()}
-            aria-label="pass turn"
+            className={`tile__pill${turn.expired ? " tile__pill--expired" : ""}${
+              dragPos ? " tile__pill--dragging" : ""
+            }`}
+            style={{
+              left: `${pillPos.x}%`,
+              top: `${pillPos.y}%`,
+              fontSize: `calc(0.95rem * ${scale})`,
+            }}
+            onPointerDown={onPillDown}
+            onPointerMove={onPillMove}
+            onPointerUp={onPillUp}
+            aria-label="turn timer: tap to pass turn, drag to move"
           >
             <span className="tile__pill-turn">{turn.turnNumber}</span>
             <span className="tile__pill-time">

@@ -120,6 +120,7 @@ export interface StoreState {
     delta: number,
   ) => void;
   toggleEliminated: (playerId: string) => void;
+  setTimerPos: (playerId: string, pos: { x: number; y: number }) => void;
 
   // turns & timers
   passTurn: () => void;
@@ -312,6 +313,17 @@ export const useStore = create<StoreState>()(
             players: updatePlayer(s.game.players, playerId, (p) => ({
               ...p,
               eliminated: !p.eliminated,
+            })),
+          },
+        })),
+
+      setTimerPos: (playerId, pos) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            players: updatePlayer(s.game.players, playerId, (p) => ({
+              ...p,
+              timerPos: pos,
             })),
           },
         })),
