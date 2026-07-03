@@ -47,6 +47,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const adjustLife = useStore((s) => s.adjustLife);
   const passTurn = useStore((s) => s.passTurn);
   const setTimerPos = useStore((s) => s.setTimerPos);
+  const setActivePlayer = useStore((s) => s.setActivePlayer);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ sx: number; sy: number; base: TilePos; moved: boolean } | null>(
@@ -78,12 +79,29 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   };
   useEffect(() => clearSwingTimer, []);
 
+  const isActive = turn.activePlayerId === pid;
+
+  // Long-press the tile body (not a control) to make this seat the active turn
+  // — recovery from a mis-pass without cycling the whole table.
+  const longPress = useRef<number | null>(null);
+  const cancelLongPress = () => {
+    if (longPress.current !== null) window.clearTimeout(longPress.current);
+    longPress.current = null;
+  };
+  const onContentDown = (e: PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    cancelLongPress();
+    longPress.current = window.setTimeout(() => {
+      if (!isActive) setActivePlayer(pid);
+    }, 550);
+  };
+  useEffect(() => cancelLongPress, []);
+
   const minus = useHoldRepeat(bumpLife, -1, -10);
   const plus = useHoldRepeat(bumpLife, 1, 10);
 
   if (!player) return null;
 
-  const isActive = turn.activePlayerId === pid;
   const rotated = placement.rotation === 90 || placement.rotation === 270;
   const poisonDead = isPoisonLethal(player.counters.poison);
   const cmdrDead = isCommanderDamageLethal(player.commanderDamage);
@@ -140,10 +158,18 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
     <div
       className={`tile${player.eliminated ? " tile--out" : ""}${
         lethal ? " tile--lethal" : ""
-      }`}
+      }${isActive ? " tile--active" : ""}`}
       style={tileStyle}
     >
-      <div className="tile__content" ref={contentRef} style={contentStyle}>
+      <div
+        className="tile__content"
+        ref={contentRef}
+        style={contentStyle}
+        onPointerDown={onContentDown}
+        onPointerUp={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+      >
         <button
           className="tile__adj tile__adj--minus"
           aria-label="decrease life"
