@@ -42,6 +42,12 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const pid = placement.playerId;
   const player = useStore((s) => s.game.players.find((p) => p.id === pid));
   const turn = useStore((s) => s.game.turn);
+  // Last player standing (returns a stable id/null primitive — safe selector).
+  const winnerId = useStore((s) => {
+    if (s.game.players.length <= 1) return null;
+    const alive = s.game.players.filter((p) => !p.eliminated);
+    return alive.length === 1 ? alive[0].id : null;
+  });
   const scale = useStore((s) => s.settings.turnTimerScale);
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
   const adjustLife = useStore((s) => s.adjustLife);
@@ -200,6 +206,12 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
             {swing > 0 ? `+${swing}` : swing}
             <span className="tile__swing-undo">↺</span>
           </button>
+        )}
+
+        {winnerId === pid && !player.eliminated && (
+          <div className="tile__winner">
+            <span aria-hidden>🏆</span> WINS
+          </div>
         )}
 
         {lethal && (
