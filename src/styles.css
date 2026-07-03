@@ -808,3 +808,68 @@ input[type="text"] {
 .editor__actions .bigbtn {
   margin-top: 0;
 }
+
+/* ---------- motion ---------- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sheet-backdrop,
+.overlay {
+  animation: fadeIn 0.16s ease;
+}
+
+.sheet {
+  animation: slideUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.panel {
+  animation: popIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Tactile feedback */
+.sheet__row:active,
+.chip:active,
+.bigbtn:active {
+  filter: brightness(1.18);
+}
+
+.tile__adj:active .tile__sign {
+  opacity: 0.75;
+  transform: scale(1.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop,
+  .overlay,
+  .sheet,
+  .panel,
+  .tile__pill--expired {
+    animation: none;
+  }
+}
