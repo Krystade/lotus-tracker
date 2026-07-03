@@ -139,6 +139,8 @@ function CustomEditor({
   const [rows, setRows] = useState(current.rows);
   const [cols, setCols] = useState(current.cols);
   const [paint, setPaint] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const INVALID = "Each player must fill one solid rectangle (no gaps/overlaps).";
   const [rotations, setRotations] = useState<Record<number, Rotation>>(() => {
     const r: Record<number, Rotation> = {};
     current.placements.forEach((p) => (r[seatOf(p.playerId)] = p.rotation));
@@ -171,6 +173,7 @@ function CustomEditor({
   };
 
   const paintCell = (r: number, c: number) => {
+    setError(null);
     setGrid((g) => g.map((row, ri) => row.map((v, ci) => (ri === r && ci === c ? paint : v))));
   };
 
@@ -191,6 +194,16 @@ function CustomEditor({
       }
     }
     if (seats.size === 0) return null;
+    // Validate: each seat must exactly fill its bounding rectangle. This rejects
+    // non-rectangular paintings and any two seats whose boxes would overlap
+    // (which would otherwise render as tiles covering each other).
+    for (const [seat, box] of seats) {
+      for (let r = box.minR; r <= box.maxR; r++) {
+        for (let c = box.minC; c <= box.maxC; c++) {
+          if (grid[r][c] !== seat) return null;
+        }
+      }
+    }
     // Order by the painted seat number so the palette colors you chose map to
     // players predictably (seat 1 -> first player, etc.), rather than by grid
     // position which would silently swap colors on Apply.
@@ -297,12 +310,15 @@ function CustomEditor({
         </>
       )}
 
+      {error && <p className="editor__error">{error}</p>}
+
       <div className="editor__actions">
         <button
           className="bigbtn"
           onClick={() => {
             const l = build();
             if (l) onApply(l);
+            else setError(INVALID);
           }}
         >
           Apply
@@ -311,7 +327,10 @@ function CustomEditor({
           className="bigbtn bigbtn--ghost"
           onClick={() => {
             const l = build();
-            if (!l) return;
+            if (!l) {
+              setError(INVALID);
+              return;
+            }
             const name = window.prompt("Name this layout?");
             if (name) onSave(name, l);
           }}

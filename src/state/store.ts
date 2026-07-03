@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import {
   COMMANDER_TAX_STEP,
   type CounterKey,
@@ -19,6 +19,32 @@ import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat } from "../layout/colors";
 import { defaultLayoutFor } from "../layout/presets";
 import { uid } from "../util/id";
+
+// localStorage can throw in private mode / at quota. Degrade to a no-op so a
+// failed write never breaks the in-memory game (which is the source of truth).
+const safeStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      localStorage.setItem(name, value);
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      localStorage.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
 const DEFAULT_SETTINGS: Settings = {
   defaultTurnBudgetSec: 300,
@@ -473,18 +499,28 @@ export const useStore = create<StoreState>()(
     {
       name: "lotus-tracker",
       version: 2,
+      storage: createJSONStorage(() => safeStorage),
       migrate: (state) => state as StoreState,
-      // Deep-fill from defaults so a persisted object from an older build that
-      // lacks a newly-added field can't leave it `undefined` (default zustand
-      // merge is a shallow top-level spread).
+      // Deep-fill from defaults so a persisted object from an older build (or
+      // hand-edited/corrupt storage) can't leave a field `undefined` — the
+      // default zustand merge is a shallow top-level spread.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<StoreState>;
+        const players =
+          p.game && Array.isArray(p.game.players)
+            ? p.game.players.map((pl, i) => ({
+                ...createPlayer(i, current.game.startingLife),
+                ...pl,
+                counters: { ...emptyCounters(), ...(pl?.counters ?? {}) },
+                commanderDamage: pl?.commanderDamage ?? {},
+              }))
+            : current.game.players;
         const game = p.game
           ? {
               ...current.game,
               ...p.game,
               turn: { ...current.game.turn, ...(p.game.turn ?? {}) },
-              players: p.game.players ?? current.game.players,
+              players,
             }
           : current.game;
         return {

@@ -9,6 +9,7 @@ import {
 import { useStore } from "../state/store";
 import { useHoldRepeat } from "../hooks/useHoldRepeat";
 import { formatClock } from "../util/format";
+import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
 import type { Placement, Rotation, TilePos } from "../state/types";
@@ -66,24 +67,44 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   // fades and commits. Tapping the chip undoes the whole swing (mis-tap guard).
   const [swing, setSwing] = useState(0);
   const swingTimer = useRef<number | null>(null);
+  // The life value we expect after our own edits — lets us (a) accumulate the
+  // *applied* (clamp-aware) delta and (b) detect life changed by another path.
+  const expectedLife = useRef(player?.life ?? 0);
   const clearSwingTimer = () => {
     if (swingTimer.current !== null) window.clearTimeout(swingTimer.current);
     swingTimer.current = null;
   };
   const bumpLife = useCallback(
     (n: number) => {
+      const before = expectedLife.current;
+      const after = clampLife(before + n);
       adjustLife(pid, n);
-      setSwing((s) => s + n);
+      expectedLife.current = after;
+      setSwing((s) => s + (after - before)); // applied delta, not nominal
       if (swingTimer.current !== null) window.clearTimeout(swingTimer.current);
       swingTimer.current = window.setTimeout(() => setSwing(0), 2200);
     },
     [adjustLife, pid],
   );
   const undoSwing = () => {
-    if (swing !== 0) adjustLife(pid, -swing);
+    if (swing !== 0) {
+      adjustLife(pid, -swing);
+      expectedLife.current = clampLife(expectedLife.current - swing);
+    }
     setSwing(0);
     clearSwingTimer();
   };
+  // If life changed by any other path (Set life, commander damage), the pending
+  // swing is stale — drop it so undo can't corrupt the new total.
+  useEffect(() => {
+    const life = player?.life;
+    if (life === undefined) return;
+    if (life !== expectedLife.current) {
+      expectedLife.current = life;
+      setSwing(0);
+      clearSwingTimer();
+    }
+  }, [player?.life]);
   useEffect(() => clearSwingTimer, []);
 
   const isActive = turn.activePlayerId === pid;
@@ -91,16 +112,25 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   // Long-press the tile body (not a control) to make this seat the active turn
   // — recovery from a mis-pass without cycling the whole table.
   const longPress = useRef<number | null>(null);
+  const lpStart = useRef<{ x: number; y: number } | null>(null);
   const cancelLongPress = () => {
     if (longPress.current !== null) window.clearTimeout(longPress.current);
     longPress.current = null;
+    lpStart.current = null;
   };
   const onContentDown = (e: PointerEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
     cancelLongPress();
+    lpStart.current = { x: e.clientX, y: e.clientY };
     longPress.current = window.setTimeout(() => {
-      if (!isActive) setActivePlayer(pid);
+      if (!isActive && player && !player.eliminated) setActivePlayer(pid);
     }, 550);
+  };
+  const onContentMove = (e: PointerEvent) => {
+    const st = lpStart.current;
+    if (st && Math.hypot(e.clientX - st.x, e.clientY - st.y) > 10) {
+      cancelLongPress();
+    }
   };
   useEffect(() => cancelLongPress, []);
 
@@ -166,7 +196,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
     <div
       className={`tile${player.eliminated ? " tile--out" : ""}${
         lethal ? " tile--lethal" : ""
-      }${isActive ? " tile--active" : ""}`}
+      }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
     >
       <div
@@ -174,26 +204,34 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
         ref={contentRef}
         style={contentStyle}
         onPointerDown={onContentDown}
+        onPointerMove={onContentMove}
         onPointerUp={cancelLongPress}
         onPointerLeave={cancelLongPress}
         onPointerCancel={cancelLongPress}
       >
         <button
           className="tile__adj tile__adj--minus"
-          aria-label="decrease life"
+          aria-label={`${player.name} decrease life`}
           {...minus}
         >
           <span className="tile__sign">–</span>
         </button>
         <button
           className="tile__adj tile__adj--plus"
-          aria-label="increase life"
+          aria-label={`${player.name} increase life`}
           {...plus}
         >
           <span className="tile__sign">+</span>
         </button>
 
-        <div className="tile__life">{player.life}</div>
+        <div
+          className="tile__life"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label={`${player.name} life ${player.life}`}
+        >
+          {player.life}
+        </div>
 
         {swing !== 0 && (
           <button
@@ -208,7 +246,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
 
-        {winnerId === pid && !player.eliminated && (
+        {winnerId === pid && !player.eliminated && !lethal && (
           <div className="tile__winner">
             <span aria-hidden>🏆</span> WINS
           </div>

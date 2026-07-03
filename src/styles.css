@@ -6,6 +6,7 @@
   --row: #232326;
   --muted: #9a9a9d;
   --gap: 8px;
+  color-scheme: dark;
   font-family: "Baloo 2", ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI",
     system-ui, sans-serif;
 }
@@ -21,12 +22,21 @@ body,
   margin: 0;
 }
 
+/* Lock the single-screen app: no page scroll, no iOS rubber-band bounce. */
+html,
+body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
 body {
   background: var(--bg);
   color: #fff;
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -51,8 +61,10 @@ input {
 .app {
   position: fixed;
   inset: 0;
-  padding: calc(env(safe-area-inset-top) + 4px) 6px
-    calc(env(safe-area-inset-bottom) + 4px);
+  padding: calc(env(safe-area-inset-top) + 4px)
+    calc(env(safe-area-inset-right) + 6px)
+    calc(env(safe-area-inset-bottom) + 4px)
+    calc(env(safe-area-inset-left) + 6px);
 }
 
 .board {
@@ -881,6 +893,13 @@ input[type="text"] {
 }
 
 /* Sticky so Apply / Save stay reachable no matter how tall the editor gets. */
+.editor__error {
+  color: #ff6b81;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
 .editor__actions {
   position: sticky;
   bottom: 0;

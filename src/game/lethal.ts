@@ -10,9 +10,9 @@ export function isPoisonLethal(poison: number): boolean {
 
 /** True if any single commander-damage source has reached the lethal threshold. */
 export function isCommanderDamageLethal(
-  commanderDamage: Record<string, number>,
+  commanderDamage: Record<string, number> | undefined,
 ): boolean {
-  return Object.values(commanderDamage).some(
+  return Object.values(commanderDamage ?? {}).some(
     (d) => d >= COMMANDER_DAMAGE_LETHAL,
   );
 }

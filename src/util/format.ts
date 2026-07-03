@@ -6,12 +6,15 @@ export function formatClock(totalSeconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/** Format total game time as mm:ss with zero-padded minutes. */
+/** Format total game time as mm:ss, or h:mm:ss once it passes an hour. */
 export function formatGameClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(s / 60);
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
   const seconds = s % 60;
-  return `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
+  const ss = seconds.toString().padStart(2, "0");
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${ss}`;
+  }
+  return `${minutes.toString().padStart(2, "0")}:${ss}`;
 }
