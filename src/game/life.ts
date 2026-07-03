@@ -4,9 +4,16 @@ export const LIFE_MIN = -999;
 export const LIFE_MAX = 9999;
 
 export function clampLife(value: number): number {
-  if (value < LIFE_MIN) return LIFE_MIN;
-  if (value > LIFE_MAX) return LIFE_MAX;
+  if (Number.isNaN(value)) return 0;
+  if (value < LIFE_MIN) return LIFE_MIN; // handles -Infinity
+  if (value > LIFE_MAX) return LIFE_MAX; // handles +Infinity
   return value;
+}
+
+/** Clamp a starting-life value to a sane, finite range. */
+export function clampStartingLife(value: number): number {
+  if (!Number.isFinite(value)) return 40;
+  return Math.max(1, Math.min(999, Math.round(value)));
 }
 
 export function applyLifeDelta(current: number, delta: number): number {

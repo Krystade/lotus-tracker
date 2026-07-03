@@ -9,7 +9,12 @@ import {
   type Player,
   type Settings,
 } from "./types";
-import { applyLifeDelta, clampCounter, clampLife } from "../game/life";
+import {
+  applyLifeDelta,
+  clampCounter,
+  clampLife,
+  clampStartingLife,
+} from "../game/life";
 import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat } from "../layout/colors";
 import { defaultLayoutFor } from "../layout/presets";
@@ -57,9 +62,19 @@ function reconcilePlayers(
   count: number,
   startingLife: number,
 ): Player[] {
+  const validIds = new Set(
+    Array.from({ length: count }, (_, i) => `p${i}`),
+  );
   const next: Player[] = [];
   for (let i = 0; i < count; i++) {
-    next.push(existing[i] ?? createPlayer(i, startingLife));
+    const p = existing[i] ?? createPlayer(i, startingLife);
+    // Drop commander damage from opponents who no longer exist, else their
+    // stale (possibly lethal) value would haunt the player unclearable.
+    const commanderDamage: Record<string, number> = {};
+    for (const [k, v] of Object.entries(p.commanderDamage)) {
+      if (validIds.has(k) && k !== p.id) commanderDamage[k] = v;
+    }
+    next.push({ ...p, commanderDamage });
   }
   return next;
 }
@@ -70,12 +85,14 @@ function newGameState(
   settings: Settings,
   layout?: LayoutConfig,
 ): GameState {
-  const players = createPlayers(playerCount, startingLife);
+  const count = Math.max(1, Math.min(6, Math.round(playerCount) || 4));
+  const life = clampStartingLife(startingLife);
+  const players = createPlayers(count, life);
   const budget = settings.defaultTurnBudgetSec;
   return {
     players,
-    startingLife,
-    layout: layout ?? defaultLayoutFor(playerCount),
+    startingLife: life,
+    layout: layout ?? defaultLayoutFor(count),
     turn: {
       activePlayerId: players[0].id,
       turnNumber: 1,
@@ -198,7 +215,8 @@ export const useStore = create<StoreState>()(
           },
         })),
 
-      setLife: (playerId, value) =>
+      setLife: (playerId, value) => {
+        if (!Number.isFinite(value)) return; // ignore NaN / bad input
         set((s) => ({
           game: {
             ...s.game,
@@ -207,7 +225,8 @@ export const useStore = create<StoreState>()(
               life: clampLife(Math.round(value)),
             })),
           },
-        })),
+        }));
+      },
 
       adjustCounter: (playerId, key, delta) =>
         set((s) => ({
@@ -307,15 +326,19 @@ export const useStore = create<StoreState>()(
         })),
 
       toggleEliminated: (playerId) =>
-        set((s) => ({
-          game: {
-            ...s.game,
-            players: updatePlayer(s.game.players, playerId, (p) => ({
-              ...p,
-              eliminated: !p.eliminated,
-            })),
-          },
-        })),
+        set((s) => {
+          const players = updatePlayer(s.game.players, playerId, (p) => ({
+            ...p,
+            eliminated: !p.eliminated,
+          }));
+          const toggled = players.find((p) => p.id === playerId);
+          // If we just eliminated the active player, hand off the turn.
+          const turn =
+            toggled?.eliminated && s.game.turn.activePlayerId === playerId
+              ? advanceTurn(s.game.turn, players, s.settings.defaultTurnBudgetSec)
+              : s.game.turn;
+          return { game: { ...s.game, players, turn } };
+        }),
 
       setTimerPos: (playerId, pos) =>
         set((s) => ({
@@ -440,7 +463,29 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "lotus-tracker",
-      version: 1,
+      version: 2,
+      migrate: (state) => state as StoreState,
+      // Deep-fill from defaults so a persisted object from an older build that
+      // lacks a newly-added field can't leave it `undefined` (default zustand
+      // merge is a shallow top-level spread).
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<StoreState>;
+        const game = p.game
+          ? {
+              ...current.game,
+              ...p.game,
+              turn: { ...current.game.turn, ...(p.game.turn ?? {}) },
+              players: p.game.players ?? current.game.players,
+            }
+          : current.game;
+        return {
+          ...current,
+          ...p,
+          settings: { ...current.settings, ...(p.settings ?? {}) },
+          customLayouts: p.customLayouts ?? current.customLayouts,
+          game,
+        };
+      },
     },
   ),
 );
