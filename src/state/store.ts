@@ -172,9 +172,18 @@ export const useStore = create<StoreState>()(
       customLayouts: [],
 
       newGame: ({ playerCount, startingLife, layout }) =>
-        set((s) => ({
-          game: newGameState(playerCount, startingLife, s.settings, layout),
-        })),
+        set((s) => {
+          // Keep the current (possibly custom) arrangement if the pod size is
+          // unchanged, instead of always snapping back to the default preset.
+          const keep =
+            layout ??
+            (s.game.layout.playerCount === playerCount
+              ? s.game.layout
+              : undefined);
+          return {
+            game: newGameState(playerCount, startingLife, s.settings, keep),
+          };
+        }),
 
       resetLife: () =>
         set((s) => {

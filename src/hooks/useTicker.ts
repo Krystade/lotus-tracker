@@ -10,16 +10,19 @@ export function useTicker(): void {
 
   useEffect(() => {
     let last = Date.now();
-    const id = window.setInterval(() => {
+    const step = () => {
       const now = Date.now();
       const deltaSec = (now - last) / 1000;
       last = now;
       if (deltaSec > 0) tick(deltaSec);
-    }, 250);
+    };
+    const id = window.setInterval(step, 250);
 
+    // Timers are throttled while the tab is hidden; catch up on real elapsed
+    // time when we return so the total game clock (and turn countdown) stay
+    // accurate rather than undercounting the backgrounded interval.
     const onVisible = () => {
-      // Reset the reference point so we don't dump a huge delta after resume.
-      last = Date.now();
+      if (document.visibilityState === "visible") step();
     };
     document.addEventListener("visibilitychange", onVisible);
 

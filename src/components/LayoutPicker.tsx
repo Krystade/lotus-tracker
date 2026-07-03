@@ -191,10 +191,10 @@ function CustomEditor({
       }
     }
     if (seats.size === 0) return null;
-    // Re-index seats to a contiguous 0..n-1 order (top-left first).
-    const ordered = [...seats.entries()].sort(
-      (a, b) => a[1].minR - b[1].minR || a[1].minC - b[1].minC,
-    );
+    // Order by the painted seat number so the palette colors you chose map to
+    // players predictably (seat 1 -> first player, etc.), rather than by grid
+    // position which would silently swap colors on Apply.
+    const ordered = [...seats.entries()].sort((a, b) => a[0] - b[0]);
     const placements: Placement[] = ordered.map(([seat, box], i) => ({
       playerId: `p${i}`,
       row: box.minR + 1,

@@ -42,6 +42,15 @@ describe("store correctness", () => {
     expect(s().game.turn.activePlayerId).not.toBe("p0");
   });
 
+  it("keeps a custom layout across New Game when the pod size is unchanged", () => {
+    s().applyLayout(twoPlayerLayout);
+    expect(s().game.layout.id).toBe("t");
+    s().newGame({ playerCount: 2, startingLife: 40 });
+    expect(s().game.layout.id).toBe("t"); // preserved
+    s().newGame({ playerCount: 4, startingLife: 40 });
+    expect(s().game.layout.id).not.toBe("t"); // different count -> default
+  });
+
   it("prunes stale commander damage when the pod shrinks", () => {
     s().adjustCommanderDamage("p0", "p3", 21); // p0 now lethal from p3
     expect(s().game.players[0].commanderDamage.p3).toBe(21);
