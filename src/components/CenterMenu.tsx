@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { formatGameClock } from "../util/format";
 
@@ -25,6 +25,15 @@ export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
     setOpen(false);
     setConfirmReset(false);
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   const act = (fn: () => void) => () => {
     fn();
     close();

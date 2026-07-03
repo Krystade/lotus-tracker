@@ -48,6 +48,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const passTurn = useStore((s) => s.passTurn);
   const setTimerPos = useStore((s) => s.setTimerPos);
   const setActivePlayer = useStore((s) => s.setActivePlayer);
+  const toggleEliminated = useStore((s) => s.toggleEliminated);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ sx: number; sy: number; base: TilePos; moved: boolean } | null>(
@@ -106,6 +107,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const poisonDead = isPoisonLethal(player.counters.poison);
   const cmdrDead = isCommanderDamageLethal(player.commanderDamage);
   const lethal = player.life <= 0 || poisonDead || cmdrDead;
+  const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
 
   const contentStyle: CSSProperties = {
@@ -200,7 +202,18 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
 
-        {lethal && <div className="tile__skull">☠</div>}
+        {lethal && (
+          <button
+            className="tile__skull"
+            onClick={() => toggleEliminated(pid)}
+            aria-label={`Lethal (${deathCause}); tap to ${
+              player.eliminated ? "revive" : "eliminate"
+            }`}
+          >
+            <span aria-hidden>☠</span>
+            <span className="tile__skull-cause">{deathCause}</span>
+          </button>
+        )}
 
         <button
           className="tile__tax"

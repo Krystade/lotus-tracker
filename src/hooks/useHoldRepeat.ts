@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Pointer handlers for a +/- control: a quick tap applies `tapAmount`, while
@@ -20,6 +20,9 @@ export function useHoldRepeat(
     }
     heldRef.current = false;
   }, []);
+
+  // Stop any pending repeat if the component unmounts mid-hold.
+  useEffect(() => stop, [stop]);
 
   const start = useCallback(() => {
     // Immediate single step on tap.

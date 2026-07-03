@@ -37,6 +37,12 @@ button {
   touch-action: manipulation;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
+}
+
 input {
   font-family: inherit;
 }
@@ -138,13 +144,25 @@ input {
 
 .tile__skull {
   position: absolute;
-  top: 12%;
+  top: 13%;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 1.6rem;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.85;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.tile__skull-cause {
+  font-size: 0.72rem;
+  letter-spacing: 0.6px;
 }
 
 /* Accumulating life-swing chip (tap to undo the swing). */
@@ -191,7 +209,7 @@ input {
   color: currentColor;
   border: none;
   border-radius: 999px;
-  padding: 5px 12px;
+  padding: 8px 14px;
   font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.4px;
@@ -199,9 +217,11 @@ input {
 
 .tile__more {
   position: absolute;
-  bottom: 8px;
-  right: 14px;
+  bottom: 6px;
+  right: 10px;
   z-index: 4;
+  min-width: 44px;
+  min-height: 40px;
   background: transparent;
   border: none;
   color: currentColor;
@@ -458,6 +478,16 @@ input {
 .panel__life-set {
   display: flex;
   gap: 8px;
+}
+
+.panel__life-set button {
+  background: var(--pink);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .panel__add {

@@ -16,7 +16,7 @@ export function NewGameScreen({ onClose }: Props) {
   const [life, setLife] = useState(currentLife);
   const [customLife, setCustomLife] = useState("");
 
-  const isCustom = !LIFE_PRESETS.includes(life);
+  const isCustom = customLife.trim() !== "";
 
   const start = () => {
     newGame({ playerCount: count, startingLife: life });
@@ -54,8 +54,11 @@ export function NewGameScreen({ onClose }: Props) {
               {LIFE_PRESETS.map((n) => (
                 <button
                   key={n}
-                  className={`chip${life === n ? " is-on" : ""}`}
-                  onClick={() => setLife(n)}
+                  className={`chip${life === n && !isCustom ? " is-on" : ""}`}
+                  onClick={() => {
+                    setLife(n);
+                    setCustomLife("");
+                  }}
                 >
                   {n}
                 </button>
@@ -65,10 +68,12 @@ export function NewGameScreen({ onClose }: Props) {
                 type="number"
                 inputMode="numeric"
                 placeholder="Custom"
-                value={isCustom ? (customLife || life) : customLife}
+                value={customLife}
                 onChange={(e) => {
-                  setCustomLife(e.target.value);
-                  if (e.target.value.trim() !== "") setLife(Number(e.target.value));
+                  const v = e.target.value;
+                  setCustomLife(v);
+                  const n = Number(v);
+                  if (v.trim() !== "" && Number.isFinite(n)) setLife(n);
                 }}
               />
             </div>
