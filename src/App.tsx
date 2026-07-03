@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "./state/store";
 import { useTicker } from "./hooks/useTicker";
 import { useWakeLock } from "./hooks/useWakeLock";
-import { fireTurnExpiredAlert } from "./util/alert";
+import { fireTurnExpiredAlert, unlockAudio } from "./util/alert";
 import { Board } from "./components/Board";
 import { CenterMenu } from "./components/CenterMenu";
 import { PlayerDetail } from "./components/PlayerDetail";
@@ -29,6 +29,13 @@ export default function App() {
     }
     wasExpired.current = expired;
   }, [expired, soundOn, vibrateOn]);
+
+  // Unlock audio on the first user interaction (iOS autoplay policy).
+  useEffect(() => {
+    const onFirst = () => unlockAudio();
+    window.addEventListener("pointerdown", onFirst, { once: true });
+    return () => window.removeEventListener("pointerdown", onFirst);
+  }, []);
 
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [detailId, setDetailId] = useState<string | null>(null);

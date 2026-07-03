@@ -11,6 +11,7 @@ interface Props {
 /** Center hexagon button + total game timer, and the pop-up action sheet. */
 export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
   const [open, setOpen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const elapsed = useStore((s) => s.game.gameElapsedSec);
   const gameRunning = useStore((s) => s.game.gameTimerRunning);
   const turnRunning = useStore((s) => s.game.turn.running);
@@ -20,7 +21,10 @@ export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
   const toggleTurnRunning = useStore((s) => s.toggleTurnRunning);
   const resetTurnTimer = useStore((s) => s.resetTurnTimer);
 
-  const close = () => setOpen(false);
+  const close = () => {
+    setOpen(false);
+    setConfirmReset(false);
+  };
   const act = (fn: () => void) => () => {
     fn();
     close();
@@ -70,8 +74,19 @@ export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
               </button>
             </div>
             <div className="sheet__group">
-              <button className="sheet__row" onClick={act(resetLife)}>
-                ↺ Reset life
+              <button
+                className={`sheet__row${confirmReset ? " sheet__row--danger" : ""}`}
+                onClick={() => {
+                  if (confirmReset) {
+                    resetLife();
+                    close();
+                  } else {
+                    setConfirmReset(true);
+                    window.setTimeout(() => setConfirmReset(false), 3000);
+                  }
+                }}
+              >
+                {confirmReset ? "↺ Tap again to reset life" : "↺ Reset life"}
               </button>
               <button className="sheet__row" onClick={act(onNewGame)}>
                 ✦ New game
