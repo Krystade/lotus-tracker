@@ -511,11 +511,12 @@ export const useStore = create<StoreState>()(
             ? p.game.players.map((pl, i) => ({
                 ...createPlayer(i, current.game.startingLife),
                 ...pl,
+                id: `p${i}`, // normalize even if a persisted id is corrupt
                 counters: { ...emptyCounters(), ...(pl?.counters ?? {}) },
                 commanderDamage: pl?.commanderDamage ?? {},
               }))
             : current.game.players;
-        const game = p.game
+        const rawGame = p.game
           ? {
               ...current.game,
               ...p.game,
@@ -523,6 +524,19 @@ export const useStore = create<StoreState>()(
               players,
             }
           : current.game;
+        // Guard against a persisted layout / active turn that no longer matches
+        // the players (corrupt storage): fall back to sane defaults.
+        const ids = new Set(players.map((pl) => pl.id));
+        const layoutOk =
+          rawGame.layout?.playerCount === players.length &&
+          rawGame.layout.placements.every((pl) => ids.has(pl.playerId));
+        const game = {
+          ...rawGame,
+          layout: layoutOk ? rawGame.layout : defaultLayoutFor(players.length),
+          turn: ids.has(rawGame.turn.activePlayerId)
+            ? rawGame.turn
+            : { ...rawGame.turn, activePlayerId: players[0]?.id ?? "p0" },
+        };
         return {
           ...current,
           ...p,
