@@ -773,7 +773,8 @@ input[type="text"] {
   display: grid;
   gap: 4px;
   aspect-ratio: 3 / 4;
-  max-height: 42vh;
+  max-height: 26vh;
+  margin: 0 auto;
 }
 
 .editor__cell {
@@ -786,7 +787,18 @@ input[type="text"] {
   justify-content: center;
 }
 
+/* Sticky so Apply / Save stay reachable no matter how tall the editor gets. */
 .editor__actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
   gap: 8px;
+  padding: 10px 0 4px;
+  margin-top: 4px;
+  background: var(--panel);
+  border-top: 1px solid var(--row);
+}
+
+.editor__actions .bigbtn {
+  margin-top: 0;
 }

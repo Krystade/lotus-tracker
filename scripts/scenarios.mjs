@@ -80,6 +80,17 @@ async function run() {
     );
     await page.screenshot({ path: `${OUT}/big-numbers.png` });
 
+    // Expired turn timer (red pulsing pill).
+    await setup(
+      page,
+      new Function(`
+      const st = window.__store.getState();
+      st.newGame({playerCount:4,startingLife:40});
+      window.__store.setState((s)=>({game:{...s.game, turn:{...s.game.turn, remainingSec:0, expired:true, running:false}}}));
+    `),
+    );
+    await page.screenshot({ path: `${OUT}/expired.png` });
+
     await context.close();
   }
   await browser.close();
