@@ -141,6 +141,39 @@ input {
   opacity: 0.85;
 }
 
+/* Accumulating life-swing chip (tap to undo the swing). */
+.tile__swing {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.12s ease;
+}
+
+.tile__swing--up {
+  box-shadow: inset 0 0 0 2px rgba(120, 230, 130, 0.9);
+}
+
+.tile__swing--down {
+  box-shadow: inset 0 0 0 2px rgba(255, 110, 135, 0.95);
+}
+
+.tile__swing-undo {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
 /* TAX and ⋯ live on the tile's OUTER edge (content-bottom, nearest the player)
    so they never collide with the center hex/seam. */
 .tile__tax {

@@ -1,4 +1,11 @@
-import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
 import { useStore } from "../state/store";
 import { useHoldRepeat } from "../hooks/useHoldRepeat";
 import { formatClock } from "../util/format";
@@ -47,8 +54,32 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   );
   const [dragPos, setDragPos] = useState<TilePos | null>(null);
 
-  const minus = useHoldRepeat((n) => adjustLife(pid, n), -1, -10);
-  const plus = useHoldRepeat((n) => adjustLife(pid, n), 1, 10);
+  // Accumulating life swing: sums rapid taps, shows a "+3 / -5" chip, then
+  // fades and commits. Tapping the chip undoes the whole swing (mis-tap guard).
+  const [swing, setSwing] = useState(0);
+  const swingTimer = useRef<number | null>(null);
+  const clearSwingTimer = () => {
+    if (swingTimer.current !== null) window.clearTimeout(swingTimer.current);
+    swingTimer.current = null;
+  };
+  const bumpLife = useCallback(
+    (n: number) => {
+      adjustLife(pid, n);
+      setSwing((s) => s + n);
+      if (swingTimer.current !== null) window.clearTimeout(swingTimer.current);
+      swingTimer.current = window.setTimeout(() => setSwing(0), 2200);
+    },
+    [adjustLife, pid],
+  );
+  const undoSwing = () => {
+    if (swing !== 0) adjustLife(pid, -swing);
+    setSwing(0);
+    clearSwingTimer();
+  };
+  useEffect(() => clearSwingTimer, []);
+
+  const minus = useHoldRepeat(bumpLife, -1, -10);
+  const plus = useHoldRepeat(bumpLife, 1, 10);
 
   if (!player) return null;
 
@@ -129,6 +160,19 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
         </button>
 
         <div className="tile__life">{player.life}</div>
+
+        {swing !== 0 && (
+          <button
+            className={`tile__swing${
+              swing > 0 ? " tile__swing--up" : " tile__swing--down"
+            }`}
+            onClick={undoSwing}
+            aria-label={`undo life change ${swing > 0 ? "+" : ""}${swing}`}
+          >
+            {swing > 0 ? `+${swing}` : swing}
+            <span className="tile__swing-undo">↺</span>
+          </button>
+        )}
 
         {lethal && <div className="tile__skull">☠</div>}
 
