@@ -17,7 +17,14 @@ export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
       onClose();
       return;
     }
+    if (players.length === 1) {
+      // No spin needed for a single eligible seat.
+      setHighlightId(players[0].id);
+      setChosenId(players[0].id);
+      return;
+    }
     // Random start + a fixed number of decelerating steps => a random landing.
+    // Nothing is committed until the player taps "Start".
     let i = Math.floor(Math.random() * players.length);
     let delay = 55;
     const step = () => {
@@ -29,7 +36,6 @@ export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
         timer.current = window.setTimeout(step, delay);
       } else {
         setChosenId(cur.id);
-        setFirstPlayer(cur.id);
       }
     };
     timer.current = window.setTimeout(step, delay);
@@ -68,7 +74,13 @@ export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
             {chosen ? `🏁 ${chosen.name} goes first` : "Rolling…"}
           </div>
           {chosen && (
-            <button className="bigbtn" onClick={onClose}>
+            <button
+              className="bigbtn"
+              onClick={() => {
+                setFirstPlayer(chosen.id);
+                onClose();
+              }}
+            >
               Start
             </button>
           )}

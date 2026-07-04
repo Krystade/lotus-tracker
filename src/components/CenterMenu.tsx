@@ -84,10 +84,10 @@ export function CenterMenu({
             </div>
             <div className="sheet__group">
               <button className="sheet__row" onClick={act(onRandomFirst)}>
-                🔀 Random first player
+                ⇆ Random first player
               </button>
               <button className="sheet__row" onClick={act(onDice)}>
-                🎲 Dice roller
+                ⬡ Dice roller
               </button>
             </div>
             <div className="sheet__group">

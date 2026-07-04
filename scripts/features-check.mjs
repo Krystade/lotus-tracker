@@ -38,10 +38,19 @@ await openMenu();
 await page.getByText(/Random first player/).click();
 await page.waitForTimeout(3600); // let the spin land
 const randText = (await page.locator(".rand__result").innerText()).trim();
-const turn = (await st()).turn;
-const randOk = /goes first/.test(randText) && turn.turnNumber === 1;
-await page.keyboard.press("Escape"); // close overlay
+const wonIdx = await page.evaluate(() => {
+  const seats = [...document.querySelectorAll(".rand__seat")];
+  return seats.findIndex((s) => s.classList.contains("rand__seat--won"));
+});
+// commit happens only on Start (dismissing must not mutate the game).
+await page.getByRole("button", { name: "Start", exact: true }).click();
 await page.waitForTimeout(250);
+const turn = (await st()).turn;
+const randOk =
+  /goes first/.test(randText) &&
+  wonIdx >= 0 &&
+  turn.activePlayerId === `p${wonIdx}` &&
+  turn.turnNumber === 1;
 
 // --- Player name ---
 await page.locator(".tile__more").first().click({ force: true }); // p0 detail

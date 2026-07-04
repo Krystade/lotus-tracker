@@ -462,11 +462,41 @@ input {
   transform-origin: center;
 }
 
-/* When rotated 90/270 the panel is landscape — swap the fit constraints so it
-   still fits within the screen (height becomes the horizontal extent). */
+/* When rotated 90/270 the panel is landscape. Use more of the long screen axis
+   for width, and lay the content out in two dense columns so it fits without
+   relying on a rotated-axis scroll. */
 .panel--rot {
-  width: min(440px, 88vh);
-  max-height: 90vw;
+  width: min(760px, 92vh);
+  max-height: 94vw;
+}
+
+.panel--rot .panel__body {
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.panel--rot .panel__section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 20px;
+  row-gap: 0;
+  align-content: start;
+}
+
+.panel--rot .panel__section h3,
+.panel--rot .panel__section > .panel__note,
+.panel--rot .panel__addrow,
+.panel--rot .panel__elim,
+.panel--rot .panel__life {
+  grid-column: 1 / -1;
+}
+
+.panel--rot .crow {
+  padding: 6px 24px 6px 0;
+}
+
+.panel--rot .panel__life-num {
+  font-size: 1.9rem;
 }
 
 .panel__head {
@@ -544,14 +574,31 @@ input {
   white-space: nowrap;
 }
 
+.panel__addrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.panel__addinput {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid #333;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 0.95rem;
+}
+
 .panel__add {
   background: var(--panel-2);
   border: 1px dashed #3a3a3d;
   color: #fff;
   border-radius: 10px;
-  padding: 11px;
-  margin-top: 10px;
+  padding: 10px 14px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .panel__elim {
@@ -990,12 +1037,18 @@ input[type="text"] {
 .panel__name {
   background: transparent;
   border: none;
+  border-bottom: 1.5px dashed currentColor; /* signals it's editable */
   font-family: inherit;
   font-weight: 800;
   font-size: 1.05rem;
   color: inherit;
   width: 72%;
   padding: 2px 0;
+}
+
+.panel__name::placeholder {
+  color: currentColor;
+  opacity: 0.55;
 }
 
 .panel__name:focus-visible {

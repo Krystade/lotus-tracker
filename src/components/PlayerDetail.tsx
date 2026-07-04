@@ -44,6 +44,7 @@ export function PlayerDetail({ playerId, onClose }: Props) {
 
   const [lifeInput, setLifeInput] = useState("");
   const [nameDraft, setNameDraft] = useState("");
+  const [newCounter, setNewCounter] = useState("");
 
   const player = players.find((p) => p.id === playerId);
   const others = players.filter((p) => p.id !== playerId);
@@ -55,6 +56,22 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   if (!player) return null;
 
   const rotated = rotation === 90 || rotation === 270;
+
+  // Commit + resync the draft to the canonical stored name (handles empty ->
+  // default and trailing-space -> unchanged without desyncing the field).
+  const commitName = () => {
+    const seat = Number(playerId.slice(1)) + 1;
+    const canonical = nameDraft.trim().slice(0, 16) || `P${seat}`;
+    setPlayerName(playerId, nameDraft);
+    setNameDraft(canonical);
+  };
+
+  const addCounter = () => {
+    const name = newCounter.trim();
+    if (!name) return;
+    addCustomCounter(playerId, name);
+    setNewCounter("");
+  };
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -68,13 +85,19 @@ export function PlayerDetail({ playerId, onClose }: Props) {
           <input
             className="panel__name"
             value={nameDraft}
+            placeholder="Name"
             onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={() => setPlayerName(playerId, nameDraft)}
+            onBlur={commitName}
             onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Enter") {
+                commitName();
+                (e.target as HTMLInputElement).blur();
+              } else if (e.key === "Escape") {
+                commitName(); // commit before App's Escape handler unmounts us
+              }
             }}
             maxLength={16}
-            aria-label="player name"
+            aria-label="player name (tap to edit)"
             style={{ color: textOn(player.color) }}
           />
           <button className="panel__x" onClick={onClose} aria-label="close">
@@ -136,15 +159,21 @@ export function PlayerDetail({ playerId, onClose }: Props) {
                 onRemove={() => removeCustomCounter(playerId, c.id)}
               />
             ))}
-            <button
-              className="panel__add"
-              onClick={() => {
-                const name = window.prompt("Counter name?");
-                if (name) addCustomCounter(playerId, name);
-              }}
-            >
-              + Add custom counter
-            </button>
+            <div className="panel__addrow">
+              <input
+                className="panel__addinput"
+                value={newCounter}
+                placeholder="New counter name"
+                maxLength={16}
+                onChange={(e) => setNewCounter(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addCounter();
+                }}
+              />
+              <button className="panel__add" onClick={addCounter}>
+                + Add
+              </button>
+            </div>
           </section>
 
           {others.length > 0 && (

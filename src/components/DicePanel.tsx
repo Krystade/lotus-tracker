@@ -22,6 +22,7 @@ export function DicePanel({ onClose }: { onClose: () => void }) {
     if (timer.current !== null) window.clearInterval(timer.current);
     let ticks = 0;
     const draw = () => 1 + Math.floor(Math.random() * s);
+    setResult(draw()); // immediate value for the new die (no stale label)
     timer.current = window.setInterval(() => {
       setResult(s === COIN ? Math.floor(Math.random() * 2) + 1 : draw());
       if (++ticks >= 9) {

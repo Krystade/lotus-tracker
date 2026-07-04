@@ -402,20 +402,24 @@ export const useStore = create<StoreState>()(
 
       // Choose who takes the first turn (used by "random first player").
       setFirstPlayer: (playerId) =>
-        set((s) => ({
-          game: {
-            ...s.game,
-            turn: {
-              ...s.game.turn,
-              activePlayerId: playerId,
-              turnNumber: 1,
-              remainingSec: s.settings.defaultTurnBudgetSec,
-              budgetSec: s.settings.defaultTurnBudgetSec,
-              running: s.settings.turnTimerEnabled,
-              expired: false,
+        set((s) => {
+          const target = s.game.players.find((p) => p.id === playerId);
+          if (!target || target.eliminated) return {}; // ignore invalid/dead
+          return {
+            game: {
+              ...s.game,
+              turn: {
+                ...s.game.turn,
+                activePlayerId: playerId,
+                turnNumber: 1,
+                remainingSec: s.settings.defaultTurnBudgetSec,
+                budgetSec: s.settings.defaultTurnBudgetSec,
+                running: s.settings.turnTimerEnabled,
+                expired: false,
+              },
             },
-          },
-        })),
+          };
+        }),
 
       passTurn: () =>
         set((s) => ({
