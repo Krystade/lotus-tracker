@@ -5,14 +5,14 @@ A Magic: The Gathering **Commander/EDH life & turn tracker**, built as an instal
 ## Features
 
 - **1–6 players** in colored tiles, each rotated toward its seat.
-- **Life:** tap the − / + near each number for ±1; press-and-hold for ±10.
+- **Life:** tap the − / + near each number for ±1; press-and-hold for ±10. Rapid taps accumulate into a **"+3 / −5" swing chip** you can tap to **undo** a mis-tap.
 - **Counters:** commander tax, poison, energy, experience, storm, charge, plus custom counters.
-- **Commander damage:** per-opponent grid; auto-flags lethal at 21 (and 10 poison, life ≤ 0). Taking commander damage also reduces life.
-- **Count-down turn timer:** each turn starts at a budget (default 5:00) and counts down. Tap the timer pill (or the menu) to pass the turn; it resets for the next player. At 0:00 it turns red and beeps/vibrates. **Drag the pill** to reposition it — remembered per player.
-- **Adjustable turn-timer size** and a total game clock.
-- **Layouts:** presets for 1–6 players plus a grid-snap **custom editor** (assign seats to cells, set each tile's facing, save your own presets).
+- **Commander damage:** per-opponent grid; auto-flags lethal at 21 (and 10 poison, life ≤ 0). Taking commander damage also reduces life. A lethal tile shows a tappable **skull with the cause** (POISON / CMDR / DEAD) that one-taps eliminate.
+- **Turns:** the active player has an always-on ring. **Count-down timer** (default 5:00) — tap the pill (or the menu) to pass; at 0:00 it turns red and beeps/vibrates. **Drag the pill** to reposition it (remembered per player). **Long-press** any tile to make it active (fix a mis-pass). Last player standing gets a **🏆 WINS** badge.
+- **Adjustable turn-timer size** and a total game clock (rolls to h:mm:ss).
+- **Layouts:** presets for 1–6 players plus a grid-snap **custom editor** (assign seats to cells, set each tile's facing, save your own presets; invalid paintings are rejected).
 - **Starting life:** 20 / 30 / 40 / custom.
-- **Table-friendly:** keeps the screen awake, works fully **offline**, remembers your game across refreshes, and guards destructive resets.
+- **Installable PWA:** keeps the screen awake, works fully **offline** (service worker), safe-area aware, remembers your game across refreshes (resilient to storage failures), guards destructive resets, and honors reduced-motion.
 
 ## Develop
 
@@ -45,8 +45,11 @@ Playwright harnesses (in `scripts/`) drive the real app at phone sizes and asser
 | `scenarios.mjs` | Every player count + lethal/big-number/expired states across 3 device sizes; zero console errors. |
 | `overlays.mjs` | Settings / Layout / New game / Player detail render and fit at 13 mini + SE. |
 | `interact-check.mjs` | Tap ±1, hold behavior, tap-to-pass-turn. |
+| `swing-check.mjs` / `swing-edge-check.mjs` | Swing chip + undo, incl. clamp-safe undo and external-change cancel. |
 | `drag-check.mjs` | Turn-timer drag repositions and persists across reload. |
-| `layout-check.mjs` | Custom editor applies and saves layouts. |
+| `set-active-check.mjs` | Long-press a tile sets it active. |
+| `winner-check.mjs` | Last-player-standing WINS badge. |
+| `layout-check.mjs` / `layout-invalid-check.mjs` | Custom editor applies/saves; rejects invalid paintings. |
 | `reset-check.mjs` | "Reset life" requires a confirming second tap. |
 | `pwa-check.mjs` | Manifest + icons, service worker control, and offline reload (run against `preview`). |
 | `gen-icons.mjs` | Regenerates the PNG app icons from an SVG. |
