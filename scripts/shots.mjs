@@ -83,10 +83,10 @@ async function run() {
   // Tile detail via the TAX badge (top-left corner, not overlapped by hex).
   const before = errors.length;
   await page
-    .locator(".tile__tax")
+    .locator(".tile__more")
     .first()
     .click({ force: true })
-    .catch((e) => errors.push(`click tax: ${e}`));
+    .catch((e) => errors.push(`click more: ${e}`));
   await page.waitForTimeout(300);
   await shot(page, "06-detail");
   const detailVisible = await page

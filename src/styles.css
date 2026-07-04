@@ -112,7 +112,7 @@ input {
   top: 50%;
   transform: translateY(-50%);
   width: 32%;
-  height: 62%;
+  height: 56%;
   border: none;
   background: transparent;
   display: flex;
@@ -134,10 +134,16 @@ input {
 }
 
 .tile__sign {
-  font-size: 3rem;
+  font-size: clamp(2.2rem, 9cqmin, 4.5rem);
   font-weight: 800;
-  opacity: 0.34;
+  opacity: 0.5;
   pointer-events: none;
+}
+
+/* Eliminated tiles are out — drop their controls so live tiles pop. */
+.tile--out .tile__adj,
+.tile--out .tile__tax {
+  display: none;
 }
 
 .tile__life {
@@ -146,12 +152,17 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(3rem, 34cqmin, 12rem);
+  font-size: clamp(3rem, 38cqmin, 16rem);
   font-weight: 800;
   line-height: 1;
   pointer-events: none;
   z-index: 1;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Low-life (<=5): a table-readable danger glow that works over any tile color. */
+.tile__life--low {
+  text-shadow: 0 0 16px rgba(255, 35, 35, 0.95), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .tile__skull {
@@ -342,17 +353,18 @@ input {
   box-shadow: 0 -6px 0 #fff, 0 6px 0 #fff;
 }
 
+/* Total game time — deliberately muted/smaller so it never reads as a second
+   turn timer next to the active player's countdown pill. */
 .center__clock {
   pointer-events: auto;
-  background: #000;
-  color: #fff;
-  border-radius: 11px;
-  padding: 5px 12px;
-  font-weight: 800;
-  font-size: 0.95rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #9a9a9d;
+  border-radius: 9px;
+  padding: 3px 9px;
+  font-weight: 700;
+  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 /* ---------- bottom sheet ---------- */
@@ -558,10 +570,11 @@ input[type="text"] {
 
 /* ---------- counter rows ---------- */
 .crow {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 0;
+  padding: 9px 26px 9px 0; /* reserve a delete gutter so the value column aligns */
   border-bottom: 1px solid var(--row);
 }
 
@@ -616,6 +629,10 @@ input[type="text"] {
 }
 
 .crow__rm {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent !important;
   color: #ff5a5a !important;
   font-size: 0.95rem !important;
@@ -667,12 +684,15 @@ input[type="text"] {
 }
 
 .linkbtn {
-  background: transparent;
-  border: none;
+  background: rgba(240, 53, 107, 0.12);
+  border: 1px solid rgba(240, 53, 107, 0.42);
+  border-radius: 9px;
   color: var(--pink);
-  padding: 8px 0;
+  padding: 9px 12px;
+  margin-top: 8px;
   font-weight: 700;
-  text-align: left;
+  text-align: center;
+  width: 100%;
 }
 
 .toggle {

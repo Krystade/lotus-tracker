@@ -82,7 +82,7 @@ async function run() {
       st.adjustCommanderDamage("p0", "p1", 7);
       st.adjustCommanderDamage("p0", "p2", 3);
     });
-    await page.locator(".tile__tax").first().click({ force: true });
+    await page.locator(".tile__more").first().click({ force: true });
     await page.waitForTimeout(250);
     await shot("detail");
 

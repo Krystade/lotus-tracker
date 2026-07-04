@@ -144,6 +144,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const cmdrDead = isCommanderDamageLethal(player.commanderDamage);
   const lethal = player.life <= 0 || poisonDead || cmdrDead;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
+  const lowLife = player.life > 0 && player.life <= 5;
   const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
 
   const contentStyle: CSSProperties = {
@@ -225,7 +226,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
         </button>
 
         <div
-          className="tile__life"
+          className={`tile__life${lowLife ? " tile__life--low" : ""}`}
           aria-live="polite"
           aria-atomic="true"
           aria-label={`${player.name} life ${player.life}`}
@@ -265,13 +266,15 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
 
-        <button
-          className="tile__tax"
-          onClick={() => onOpenDetail(pid)}
-          aria-label="open counters"
-        >
-          TAX {player.counters.tax}
-        </button>
+        {player.counters.tax > 0 && (
+          <button
+            className="tile__tax"
+            onClick={() => onOpenDetail(pid)}
+            aria-label={`commander tax ${player.counters.tax}, open counters`}
+          >
+            TAX {player.counters.tax}
+          </button>
+        )}
 
         <button
           className="tile__more"
