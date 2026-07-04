@@ -457,6 +457,18 @@ input {
   border: 2px solid transparent;
 }
 
+/* Wrapper that rotates a player's detail panel to face their seat. */
+.rot-wrap {
+  transform-origin: center;
+}
+
+/* When rotated 90/270 the panel is landscape — swap the fit constraints so it
+   still fits within the screen (height becomes the horizontal extent). */
+.panel--rot {
+  width: min(440px, 88vh);
+  max-height: 90vw;
+}
+
 .panel__head {
   display: flex;
   align-items: center;

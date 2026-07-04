@@ -25,6 +25,13 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   // inside the selector would return a new reference each render and trigger an
   // infinite useSyncExternalStore loop.
   const players = useStore((s) => s.game.players);
+  // The seat's rotation so the panel opens facing that player (returns a stable
+  // number primitive — safe selector).
+  const rotation = useStore(
+    (s) =>
+      s.game.layout.placements.find((p) => p.playerId === playerId)?.rotation ??
+      0,
+  );
   const adjustCounter = useStore((s) => s.adjustCounter);
   const bumpTax = useStore((s) => s.bumpTax);
   const adjustCommanderDamage = useStore((s) => s.adjustCommanderDamage);
@@ -47,13 +54,16 @@ export function PlayerDetail({ playerId, onClose }: Props) {
 
   if (!player) return null;
 
+  const rotated = rotation === 90 || rotation === 270;
+
   return (
     <div className="overlay" onClick={onClose}>
-      <div
-        className="panel"
-        onClick={(e) => e.stopPropagation()}
-        style={{ borderColor: player.color }}
-      >
+      <div className="rot-wrap" style={{ transform: `rotate(${rotation}deg)` }}>
+        <div
+          className={`panel${rotated ? " panel--rot" : ""}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{ borderColor: player.color }}
+        >
         <div className="panel__head" style={{ background: player.color }}>
           <input
             className="panel__name"
@@ -169,6 +179,7 @@ export function PlayerDetail({ playerId, onClose }: Props) {
               {player.eliminated ? "Eliminated ✓ (tap to revive)" : "Mark eliminated"}
             </button>
           </section>
+        </div>
         </div>
       </div>
     </div>
