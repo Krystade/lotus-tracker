@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
+import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
 import {
   COMMANDER_DAMAGE_LETHAL,
@@ -32,11 +33,17 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const adjustCustomCounter = useStore((s) => s.adjustCustomCounter);
   const removeCustomCounter = useStore((s) => s.removeCustomCounter);
   const toggleEliminated = useStore((s) => s.toggleEliminated);
+  const setPlayerName = useStore((s) => s.setPlayerName);
 
   const [lifeInput, setLifeInput] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
 
   const player = players.find((p) => p.id === playerId);
   const others = players.filter((p) => p.id !== playerId);
+
+  useEffect(() => {
+    setNameDraft(player?.name ?? "");
+  }, [playerId, player?.name]);
 
   if (!player) return null;
 
@@ -48,7 +55,18 @@ export function PlayerDetail({ playerId, onClose }: Props) {
         style={{ borderColor: player.color }}
       >
         <div className="panel__head" style={{ background: player.color }}>
-          <span>Player {player.name}</span>
+          <input
+            className="panel__name"
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={() => setPlayerName(playerId, nameDraft)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            maxLength={16}
+            aria-label="player name"
+            style={{ color: textOn(player.color) }}
+          />
           <button className="panel__x" onClick={onClose} aria-label="close">
             ✕
           </button>

@@ -12,6 +12,7 @@ A Magic: The Gathering **Commander/EDH life & turn tracker**, built as an instal
 - **Adjustable turn-timer size** and a total game clock (rolls to h:mm:ss).
 - **Layouts:** presets for 1–6 players plus a grid-snap **custom editor** (assign seats to cells, set each tile's facing, save your own presets; invalid paintings are rejected).
 - **Starting life:** 20 / 30 / 40 / custom.
+- **From the center menu:** a **dice roller** (d4–d20 + coin) and **random first player** (a spin that lands on a seat and starts their turn). **Player names** are optional (edit in a tile's detail panel; default stays color-only) and show in the commander-damage grid ("from Jack").
 - **Installable PWA:** keeps the screen awake, works fully **offline** (service worker), safe-area aware, remembers your game across refreshes (resilient to storage failures), guards destructive resets, and honors reduced-motion.
 
 ## Develop
@@ -51,6 +52,7 @@ Playwright harnesses (in `scripts/`) drive the real app at phone sizes and asser
 | `winner-check.mjs` | Last-player-standing WINS badge. |
 | `layout-check.mjs` / `layout-invalid-check.mjs` | Custom editor applies/saves; rejects invalid paintings. |
 | `reset-check.mjs` | "Reset life" requires a confirming second tap. |
+| `features-check.mjs` | Dice roll, random-first-player spin, and player-name editing. |
 | `pwa-check.mjs` | Manifest + icons, service worker control, and offline reload (run against `preview`). |
 | `gen-icons.mjs` | Regenerates the PNG app icons from an SVG. |
 

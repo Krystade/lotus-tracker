@@ -6,10 +6,18 @@ interface Props {
   onNewGame: () => void;
   onSettings: () => void;
   onLayouts: () => void;
+  onDice: () => void;
+  onRandomFirst: () => void;
 }
 
 /** Center hexagon button + total game timer, and the pop-up action sheet. */
-export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
+export function CenterMenu({
+  onNewGame,
+  onSettings,
+  onLayouts,
+  onDice,
+  onRandomFirst,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const elapsed = useStore((s) => s.game.gameElapsedSec);
@@ -72,6 +80,14 @@ export function CenterMenu({ onNewGame, onSettings, onLayouts }: Props) {
               </button>
               <button className="sheet__row" onClick={() => toggleGameTimer()}>
                 {gameRunning ? "⏸ Pause game clock" : "▶ Resume game clock"}
+              </button>
+            </div>
+            <div className="sheet__group">
+              <button className="sheet__row" onClick={act(onRandomFirst)}>
+                🔀 Random first player
+              </button>
+              <button className="sheet__row" onClick={act(onDice)}>
+                🎲 Dice roller
               </button>
             </div>
             <div className="sheet__group">

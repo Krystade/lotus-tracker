@@ -920,6 +920,78 @@ input[type="text"] {
   margin: 4px 0 0;
 }
 
+/* ---------- dice ---------- */
+.dice__result {
+  font-size: 4rem;
+  font-weight: 800;
+  text-align: center;
+  padding: 8px 0 4px;
+  font-variant-numeric: tabular-nums;
+  min-height: 4.5rem;
+}
+
+.dice__result--rolling {
+  opacity: 0.6;
+}
+
+/* ---------- random first player ---------- */
+.rand__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.rand__seat {
+  min-width: 66px;
+  padding: 14px 10px;
+  border-radius: 12px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  opacity: 0.45;
+  transform: scale(0.96);
+  transition: opacity 0.08s ease, transform 0.08s ease;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.rand__seat--on {
+  opacity: 1;
+  transform: scale(1.07);
+}
+
+.rand__seat--won {
+  opacity: 1;
+  transform: scale(1.12);
+  box-shadow: 0 0 0 3px #fff, 0 0 18px rgba(255, 255, 255, 0.4);
+}
+
+.rand__result {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  padding: 10px 0;
+}
+
+/* editable player name in the detail header */
+.panel__name {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: inherit;
+  width: 72%;
+  padding: 2px 0;
+}
+
+.panel__name:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .editor__actions {
   position: sticky;
   bottom: 0;

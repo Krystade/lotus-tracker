@@ -164,6 +164,8 @@ export interface StoreState {
   ) => void;
   toggleEliminated: (playerId: string) => void;
   setTimerPos: (playerId: string, pos: { x: number; y: number }) => void;
+  setPlayerName: (playerId: string, name: string) => void;
+  setFirstPlayer: (playerId: string) => void;
 
   // turns & timers
   passTurn: () => void;
@@ -383,6 +385,35 @@ export const useStore = create<StoreState>()(
               ...p,
               timerPos: pos,
             })),
+          },
+        })),
+
+      setPlayerName: (playerId, name) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            players: updatePlayer(s.game.players, playerId, (p) => {
+              const trimmed = name.trim().slice(0, 16);
+              const seat = Number(playerId.slice(1)) + 1;
+              return { ...p, name: trimmed || `P${seat}` };
+            }),
+          },
+        })),
+
+      // Choose who takes the first turn (used by "random first player").
+      setFirstPlayer: (playerId) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            turn: {
+              ...s.game.turn,
+              activePlayerId: playerId,
+              turnNumber: 1,
+              remainingSec: s.settings.defaultTurnBudgetSec,
+              budgetSec: s.settings.defaultTurnBudgetSec,
+              running: s.settings.turnTimerEnabled,
+              expired: false,
+            },
           },
         })),
 
