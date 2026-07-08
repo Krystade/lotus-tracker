@@ -466,13 +466,28 @@ input {
    for width, and lay the content out in two dense columns so it fits without
    relying on a rotated-axis scroll. */
 .panel--rot {
-  width: min(760px, 92vh);
-  max-height: 94vw;
+  width: min(680px, 84dvh); /* becomes on-screen height — dvh excludes the URL bar */
+  max-height: 96dvw; /* becomes on-screen width */
 }
 
 .panel--rot .panel__body {
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+/* Denser controls so the rotated (short-axis) panel fits without scrolling. */
+.panel--rot .crow {
+  padding: 4px 22px 4px 0;
+}
+
+.panel--rot .crow__ctrls button {
+  width: 34px;
+  height: 34px;
+  font-size: 1.05rem;
+}
+
+.panel--rot .panel__life-num {
+  font-size: 1.7rem;
 }
 
 .panel--rot .panel__section {
@@ -491,13 +506,6 @@ input {
   grid-column: 1 / -1;
 }
 
-.panel--rot .crow {
-  padding: 6px 24px 6px 0;
-}
-
-.panel--rot .panel__life-num {
-  font-size: 1.9rem;
-}
 
 .panel__head {
   display: flex;

@@ -140,7 +140,8 @@ function CustomEditor({
   const [cols, setCols] = useState(current.cols);
   const [paint, setPaint] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const INVALID = "Each player must fill one solid rectangle (no gaps/overlaps).";
+  const INVALID =
+    "Fill every cell — each player must be one solid rectangle (no gaps/overlaps).";
   const [rotations, setRotations] = useState<Record<number, Rotation>>(() => {
     const r: Record<number, Rotation> = {};
     current.placements.forEach((p) => (r[seatOf(p.playerId)] = p.rotation));
@@ -194,6 +195,13 @@ function CustomEditor({
       }
     }
     if (seats.size === 0) return null;
+    // Every cell must be assigned — an empty cell would render as dead black
+    // space on the board.
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c] < 0) return null;
+      }
+    }
     // Validate: each seat must exactly fill its bounding rectangle. This rejects
     // non-rectangular paintings and any two seats whose boxes would overlap
     // (which would otherwise render as tiles covering each other).
