@@ -19,7 +19,9 @@ const manifest = await page.evaluate(async (href) => {
 }, manifestHref);
 
 const appleIcon = await page.evaluate(async () => {
-  const r = await fetch("/apple-touch-icon.png");
+  // Relative, not root-absolute: the app is served from a subpath on GitHub
+  // Pages (/lotus-tracker/) and from the root under `preview`.
+  const r = await fetch("./apple-touch-icon.png");
   return r.ok;
 });
 
@@ -60,3 +62,4 @@ const ok =
   !!offlineLife;
 console.log(ok ? "PASS ✅" : "FAIL ❌");
 await b.close();
+process.exit(ok ? 0 : 1);
