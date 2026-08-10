@@ -32,31 +32,72 @@ const baseTurn: TurnState = {
 };
 
 describe("nextActivePlayerId", () => {
+  it("follows the supplied seating order, not the players array", () => {
+    const players = mkPlayers(["p0", "p1", "p2", "p3"]);
+    // Clockwise order for a 2x2 pod: array order would answer "p2".
+    expect(nextActivePlayerId(players, "p1", ["p0", "p1", "p3", "p2"])).toBe(
+      "p3",
+    );
+  });
+
   it("wraps around the table", () => {
     const players = mkPlayers(["p0", "p1", "p2"]);
-    expect(nextActivePlayerId(players, "p2")).toBe("p0");
+    expect(nextActivePlayerId(players, "p2", ["p0", "p1", "p2"])).toBe("p0");
   });
 
   it("skips eliminated players", () => {
     const players = mkPlayers(["p0", "p1", "p2"], ["p1"]);
-    expect(nextActivePlayerId(players, "p0")).toBe("p2");
+    expect(nextActivePlayerId(players, "p0", ["p0", "p1", "p2"])).toBe("p2");
+  });
+
+  it("skips eliminated players in seating order, not array order", () => {
+    const players = mkPlayers(["p0", "p1", "p2", "p3"], ["p3"]);
+    expect(nextActivePlayerId(players, "p1", ["p0", "p1", "p3", "p2"])).toBe(
+      "p2",
+    );
   });
 
   it("stays put if everyone else is out", () => {
     const players = mkPlayers(["p0", "p1"], ["p1"]);
-    expect(nextActivePlayerId(players, "p0")).toBe("p0");
+    expect(nextActivePlayerId(players, "p0", ["p0", "p1"])).toBe("p0");
+  });
+
+  it("falls back to array order when the order omits the current seat", () => {
+    const players = mkPlayers(["p0", "p1"]);
+    expect(nextActivePlayerId(players, "p0", [])).toBe("p1");
   });
 });
 
 describe("advanceTurn", () => {
+  const order = ["p0", "p1"];
+
   it("bumps the turn number and resets the countdown to the budget", () => {
     const players = mkPlayers(["p0", "p1"]);
-    const next = advanceTurn(baseTurn, players, 300);
+    const next = advanceTurn(baseTurn, players, 300, order, true);
     expect(next.activePlayerId).toBe("p1");
     expect(next.turnNumber).toBe(2);
     expect(next.remainingSec).toBe(300);
     expect(next.running).toBe(true);
     expect(next.expired).toBe(false);
+  });
+
+  it("hands off clockwise rather than by array position", () => {
+    const players = mkPlayers(["p0", "p1", "p2", "p3"]);
+    const next = advanceTurn(baseTurn, players, 300, [
+      "p0",
+      "p1",
+      "p3",
+      "p2",
+    ], true);
+    expect(next.activePlayerId).toBe("p1");
+    const after = advanceTurn(next, players, 300, ["p0", "p1", "p3", "p2"], true);
+    expect(after.activePlayerId).toBe("p3");
+  });
+
+  it("leaves the countdown paused when the turn timer is disabled", () => {
+    const players = mkPlayers(["p0", "p1"]);
+    const next = advanceTurn(baseTurn, players, 300, order, false);
+    expect(next.running).toBe(false);
   });
 });
 

@@ -17,6 +17,7 @@ import {
 } from "../game/life";
 import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat } from "../layout/colors";
+import { clockwiseSeatOrder } from "../layout/order";
 import { defaultLayoutFor } from "../layout/presets";
 import { uid } from "../util/id";
 
@@ -372,7 +373,13 @@ export const useStore = create<StoreState>()(
           // If we just eliminated the active player, hand off the turn.
           const turn =
             toggled?.eliminated && s.game.turn.activePlayerId === playerId
-              ? advanceTurn(s.game.turn, players, s.settings.defaultTurnBudgetSec)
+              ? advanceTurn(
+                  s.game.turn,
+                  players,
+                  s.settings.defaultTurnBudgetSec,
+                  clockwiseSeatOrder(s.game.layout),
+                  s.settings.turnTimerEnabled,
+                )
               : s.game.turn;
           return { game: { ...s.game, players, turn } };
         }),
@@ -429,6 +436,8 @@ export const useStore = create<StoreState>()(
               s.game.turn,
               s.game.players,
               s.settings.defaultTurnBudgetSec,
+              clockwiseSeatOrder(s.game.layout),
+              s.settings.turnTimerEnabled,
             ),
           },
         })),

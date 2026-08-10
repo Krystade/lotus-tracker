@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Digits } from "./Digits";
 
 const DICE = [4, 6, 8, 10, 12, 20];
 const COIN = 2;
@@ -33,14 +34,20 @@ export function DicePanel({ onClose }: { onClose: () => void }) {
     }, 55);
   };
 
+  // A rolled number is read from every seat around the table, so 6 and 9 get
+  // the standard underline. Coin flips and the empty state are plain text.
   const label =
-    result === null
-      ? "—"
-      : sides === COIN
-        ? result === 1
-          ? "Heads"
-          : "Tails"
-        : String(result);
+    result === null ? (
+      "—"
+    ) : sides === COIN ? (
+      result === 1 ? (
+        "Heads"
+      ) : (
+        "Tails"
+      )
+    ) : (
+      <Digits value={result} />
+    );
 
   return (
     <div className="overlay" onClick={onClose}>

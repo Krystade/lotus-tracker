@@ -1,40 +1,56 @@
 import type { Player, TurnState } from "../state/types";
 
 /**
- * Returns the id of the next player after `currentId` in seating order,
- * skipping eliminated players. Wraps around. If everyone else is eliminated,
- * returns the current player. Order follows the `players` array.
+ * Returns the id of the next player after `currentId`, walking `order` —
+ * the clockwise seating order derived from the layout — and skipping
+ * eliminated players. Wraps around. If everyone else is eliminated, returns
+ * the current player.
+ *
+ * `order` is the source of truth for who sits where; the players array is only
+ * consulted for liveness. If the order does not describe the current seat (a
+ * partial or corrupt layout), falls back to array order so a turn can always
+ * be passed.
  */
 export function nextActivePlayerId(
   players: Player[],
   currentId: string,
+  order: string[],
 ): string {
   if (players.length === 0) return currentId;
-  const idx = players.findIndex((p) => p.id === currentId);
+  const seated = order.filter((id) => players.some((p) => p.id === id));
+  const ring = seated.includes(currentId) ? seated : players.map((p) => p.id);
+
+  const idx = ring.indexOf(currentId);
   const start = idx === -1 ? 0 : idx;
-  for (let step = 1; step <= players.length; step++) {
-    const candidate = players[(start + step) % players.length];
-    if (!candidate.eliminated) return candidate.id;
+  for (let step = 1; step <= ring.length; step++) {
+    const candidate = players.find(
+      (p) => p.id === ring[(start + step) % ring.length],
+    );
+    if (candidate && !candidate.eliminated) return candidate.id;
   }
   return currentId;
 }
 
 /**
- * Advance to the next player's turn: pick the next active seat, bump the turn
- * counter, and reset their countdown to the full budget.
+ * Advance to the next player's turn: pick the next seat clockwise, bump the
+ * turn counter, and reset their countdown to the full budget. The countdown
+ * only starts if the turn timer is enabled, matching setActivePlayer and
+ * resetTurnTimer.
  */
 export function advanceTurn(
   turn: TurnState,
   players: Player[],
   budgetSec: number,
+  order: string[],
+  timerEnabled: boolean,
 ): TurnState {
-  const activePlayerId = nextActivePlayerId(players, turn.activePlayerId);
+  const activePlayerId = nextActivePlayerId(players, turn.activePlayerId, order);
   return {
     activePlayerId,
     turnNumber: turn.turnNumber + 1,
     budgetSec,
     remainingSec: budgetSec,
-    running: true,
+    running: timerEnabled,
     expired: false,
   };
 }

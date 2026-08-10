@@ -142,7 +142,7 @@ input {
 
 /* Eliminated tiles are out — drop their controls so live tiles pop. */
 .tile--out .tile__adj,
-.tile--out .tile__tax {
+.tile--out .tile__chips {
   display: none;
 }
 
@@ -239,53 +239,98 @@ input {
   opacity: 0.85;
 }
 
-/* TAX and ⋯ live on the tile's OUTER edge (content-bottom, nearest the player)
-   so they never collide with the center hex/seam. */
-.tile__tax {
+/* Counter chips and ⋯ live on the tile's OUTER edge (content-bottom, nearest
+   the player) so they never collide with the center hex/seam.
+
+   Counters in play are shown on the tile so they can be read without opening
+   the detail panel. They wrap rather than overflow when several are active. */
+/* Confined to the bottom-left, where the single TAX chip used to live: the
+   turn pill sits bottom-center by default and the detail button bottom-right.
+   Extra chips wrap upward rather than running under either. */
+.tile__chips {
   position: absolute;
-  bottom: 12px;
-  left: 14px;
-  z-index: 4;
-  background: rgba(0, 0, 0, 0.22);
-  color: currentColor;
-  border: none;
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.4px;
+  bottom: 8px;
+  left: 12px;
+  right: 52%;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: none;
 }
 
+.tile__chip {
+  background: rgba(0, 0, 0, 0.24);
+  color: currentColor;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* Poison at the lethal threshold, matching the detail panel's warning row. */
+.tile__chip--warn {
+  background: rgba(255, 110, 135, 0.95);
+  color: #1a0308;
+}
+
+/* Reads as a control rather than decoration: it is the only way into a
+   player's counters, and at 0.6 opacity on a saturated seat color it was easy
+   to miss entirely. */
 .tile__more {
   position: absolute;
   bottom: 6px;
   right: 10px;
-  z-index: 4;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 44px;
-  min-height: 40px;
-  background: transparent;
-  border: none;
+  min-height: 44px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
   color: currentColor;
   font-size: 1.4rem;
-  opacity: 0.6;
+  opacity: 1;
   line-height: 1;
-  padding: 4px 10px;
+  padding: 0;
 }
 
+/* The pill itself is the countdown ring: a conic gradient that drains
+   clockwise from the top as the turn budget runs down, with the opaque inner
+   element covering all but a 3px rim. It lives inside the rotated tile, so
+   "clockwise from the top" is clockwise from that player's own seat. */
 .tile__pill {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 3;
+  /* Above the counter chips: the pill is interactive and draggable, so where
+     they do overlap it must stay legible and hittable. */
+  z-index: 4;
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: #000;
+  background: conic-gradient(
+    rgba(255, 255, 255, 0.95) calc(var(--pct, 1) * 360deg),
+    rgba(255, 255, 255, 0.2) 0
+  );
   color: #fff;
   border: none;
   border-radius: 12px;
   overflow: hidden;
+  padding: 3px;
   font-weight: 800;
   touch-action: none;
+}
+
+.tile__pill-inner {
+  display: flex;
+  align-items: stretch;
+  background: #000;
+  border-radius: 9px;
+  overflow: hidden;
 }
 
 .tile__pill--dragging {
@@ -303,8 +348,12 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
-.tile__pill--expired {
+/* Colour the inner, not the pill: the pill's background is the ring. */
+.tile__pill--expired .tile__pill-inner {
   background: var(--pink);
+}
+
+.tile__pill--expired {
   animation: pulse 0.8s infinite;
 }
 
@@ -1143,4 +1192,15 @@ input[type="text"] {
   .tile__pill--expired {
     animation: none;
   }
+}
+
+/* A 6 read from across the table is a 9. Underline both, per the standard dice
+   convention. border-bottom rather than text-decoration so the rule stays
+   legible at the very large life-total size, where a default underline sits
+   too tight to the glyph. */
+.digit--ambiguous {
+  border-bottom: 0.08em solid currentColor;
+  padding-bottom: 0.04em;
+  /* Keeps adjacent marks (69, 96) from fusing into one continuous rule. */
+  margin: 0 0.03em;
 }

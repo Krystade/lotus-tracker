@@ -51,6 +51,47 @@ describe("store correctness", () => {
     expect(s().game.layout.id).not.toBe("t"); // different count -> default
   });
 
+  it("passes the turn clockwise around the pod, not down the array", () => {
+    // Default 4-player layout: p0 TL, p1 TR, p2 BL, p3 BR. Going around the
+    // table is p0 -> p1 -> p3 -> p2; array order would give p2 third.
+    expect(s().game.turn.activePlayerId).toBe("p0");
+    s().passTurn();
+    expect(s().game.turn.activePlayerId).toBe("p1");
+    s().passTurn();
+    expect(s().game.turn.activePlayerId).toBe("p3");
+    s().passTurn();
+    expect(s().game.turn.activePlayerId).toBe("p2");
+    s().passTurn();
+    expect(s().game.turn.activePlayerId).toBe("p0");
+  });
+
+  it("passes clockwise according to a custom layout's geometry", () => {
+    // Same four seats, mirrored: p0 TR, p1 TL, p2 BL, p3 BR.
+    s().applyLayout({
+      id: "mirror",
+      name: "mirror",
+      playerCount: 4,
+      rows: 2,
+      cols: 2,
+      builtIn: false,
+      placements: [
+        { playerId: "p0", row: 1, col: 2, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p1", row: 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p2", row: 2, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p3", row: 2, col: 2, rowSpan: 1, colSpan: 1, rotation: 0 },
+      ],
+    });
+    s().setActivePlayer("p0");
+    s().passTurn();
+    expect(s().game.turn.activePlayerId).toBe("p3"); // TR -> BR, clockwise
+  });
+
+  it("does not start the countdown on pass when the turn timer is off", () => {
+    s().updateSettings({ turnTimerEnabled: false });
+    s().passTurn();
+    expect(s().game.turn.running).toBe(false);
+  });
+
   it("prunes stale commander damage when the pod shrinks", () => {
     s().adjustCommanderDamage("p0", "p3", 21); // p0 now lethal from p3
     expect(s().game.players[0].commanderDamage.p3).toBe(21);

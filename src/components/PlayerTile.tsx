@@ -12,6 +12,8 @@ import { formatClock } from "../util/format";
 import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
+import { CounterChips } from "./CounterChips";
+import { Digits } from "./Digits";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
 interface Props {
@@ -51,6 +53,11 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   });
   const scale = useStore((s) => s.settings.turnTimerScale);
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
+  // Share of the turn budget still on the clock, for the countdown ring.
+  const turnFraction =
+    turn.budgetSec > 0
+      ? Math.max(0, Math.min(1, turn.remainingSec / turn.budgetSec))
+      : 0;
   const adjustLife = useStore((s) => s.adjustLife);
   const passTurn = useStore((s) => s.passTurn);
   const setTimerPos = useStore((s) => s.setTimerPos);
@@ -231,7 +238,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           aria-atomic="true"
           aria-label={`${player.name} life ${player.life}`}
         >
-          {player.life}
+          <Digits value={player.life} />
         </div>
 
         {swing !== 0 && (
@@ -266,15 +273,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
 
-        {player.counters.tax > 0 && (
-          <button
-            className="tile__tax"
-            onClick={() => onOpenDetail(pid)}
-            aria-label={`commander tax ${player.counters.tax}, open counters`}
-          >
-            TAX {player.counters.tax}
-          </button>
-        )}
+        <CounterChips counters={player.counters} />
 
         <button
           className="tile__more"
@@ -289,19 +288,25 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
             className={`tile__pill${turn.expired ? " tile__pill--expired" : ""}${
               dragPos ? " tile__pill--dragging" : ""
             }`}
-            style={{
-              left: `${pillPos.x}%`,
-              top: `${pillPos.y}%`,
-              fontSize: `calc(0.95rem * ${scale})`,
-            }}
+            style={
+              {
+                left: `${pillPos.x}%`,
+                top: `${pillPos.y}%`,
+                fontSize: `calc(0.95rem * ${scale})`,
+                // Drives the countdown ring; drains clockwise from the top.
+                "--pct": String(turnFraction),
+              } as CSSProperties
+            }
             onPointerDown={onPillDown}
             onPointerMove={onPillMove}
             onPointerUp={onPillUp}
             aria-label="turn timer: tap to pass turn, drag to move"
           >
-            <span className="tile__pill-turn">{turn.turnNumber}</span>
-            <span className="tile__pill-time">
-              {formatClock(turn.remainingSec)}
+            <span className="tile__pill-inner">
+              <span className="tile__pill-turn">{turn.turnNumber}</span>
+              <span className="tile__pill-time">
+                {formatClock(turn.remainingSec)}
+              </span>
             </span>
           </button>
         )}
