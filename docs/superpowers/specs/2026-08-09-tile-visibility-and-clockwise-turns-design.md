@@ -38,16 +38,29 @@ Step 3 relies on screen coordinates having **y pointing down**, so an increasing
 `atan2` angle traverses right → down → left → up, which is visually clockwise.
 This is the whole trick; it is worth a comment in the source.
 
-Hand-verified against every built-in preset:
+**Order is a function of the layout's geometry, never of the player count.**
+Two layouts with the same number of seats produce different orders, which is the
+whole reason this is computed rather than tabulated. Machine-verified for the
+*built-in presets specifically* — these expectations are valid only for the
+arrangements in `presets.ts`, and must be re-derived if a preset's grid changes:
 
-| Pod | Resulting order | Path |
+| Built-in preset | Resulting order | Path |
 | --- | --- | --- |
 | 1 | p0 | trivial |
 | 2 | p0 → p1 | top → bottom |
 | 3 | p0 → p1 → p2 | TL → TR → bottom |
 | 4 | p0 → p1 → **p3 → p2** | TL → TR → BR → BL |
-| 5 | p0 → p1 → p3 → p4 → p2 | ring, wide bottom seat 4th |
+| 5 (3×2, wide bottom) | p0 → p1 → p3 → p4 → p2 | ring, wide bottom seat 4th |
 | 6 | p0 → p1 → p3 → p5 → p4 → p2 | full ring |
+
+The same seat count under a different grid yields a different — and equally
+correct — order:
+
+| 5-seat layout | Resulting order |
+| --- | --- |
+| Built-in 3 rows × 2 cols, p4 wide across the bottom | p0 → p1 → p3 → p4 → p2 |
+| Custom 2 rows × 3 cols | p0 → p1 → p2 → p4 → p3 |
+| Custom with p4 as a tall seat down the left edge | p0 → p1 → p2 → p3 → p4 |
 
 ### Degenerate cases (explicit rules)
 
@@ -167,9 +180,15 @@ settings remain behind the center hex menu. No change to what it does.
 **Unit (Vitest)**
 
 - `clockwiseSeatOrder` across all six built-in presets, asserting the exact
-  orders tabulated above.
+  orders tabulated above. These assertions are tied to the current grids in
+  `presets.ts`; if a preset's arrangement changes, the expectation changes with
+  it, and that is correct rather than a regression.
+- `clockwiseSeatOrder` on **same-seat-count, different-geometry** layouts —
+  specifically the three 5-seat arrangements tabulated above — proving order
+  tracks geometry and not player count. This is the test that would catch anyone
+  later "optimizing" the function into a lookup keyed by seat count.
 - `clockwiseSeatOrder` degenerate cases: single tile, single row, collinear
-  centers, and a custom (non-preset) layout.
+  centers.
 - `nextActivePlayerId` honoring the supplied order, skipping eliminated seats,
   and wrapping.
 - `advanceTurn` respecting `turnTimerEnabled`.
