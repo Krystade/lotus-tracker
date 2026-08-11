@@ -126,15 +126,18 @@ describe("clockwiseSeatOrder — degenerate layouts", () => {
     expect([...order].sort()).toEqual(["p0", "p1", "p2", "p3", "p4", "p5"]);
   });
 
-  it("is deterministic for seats that share an angle", () => {
-    // Two seats stacked directly above the centroid: ties break by seat index.
-    const l = layout(2, 2, [
+  it("breaks ties by seat index rather than placement order", () => {
+    // A single column: seats 0 and 1 both sit directly above the centroid and
+    // seats 2 and 3 directly below, so each pair shares an angle exactly. The
+    // placements are listed scrambled — a stable sort alone would preserve
+    // that scramble, so only a real tiebreak produces seat order.
+    const l = layout(4, 1, [
+      place(3, 4, 1),
+      place(1, 2, 1),
+      place(2, 3, 1),
       place(0, 1, 1),
-      place(1, 1, 2),
-      place(2, 2, 1),
-      place(3, 2, 2),
     ]);
-    expect(clockwiseSeatOrder(l)).toEqual(clockwiseSeatOrder(l));
+    expect(clockwiseSeatOrder(l)).toEqual(["p0", "p1", "p2", "p3"]);
   });
 
   it("returns an empty list for a layout with no placements", () => {

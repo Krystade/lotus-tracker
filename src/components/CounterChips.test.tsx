@@ -88,6 +88,30 @@ describe("CounterChips", () => {
     expect(chips(container)).toEqual(["RAD 3"]);
   });
 
+  it("names each counter in full for assistive tech", () => {
+    // The chips replaced a labelled button, so they must stay announceable —
+    // the abbreviations are for sighted players reading across a table.
+    const { getByLabelText } = render(
+      <CounterChips counters={counters({ poison: 3, tax: 2 })} />,
+    );
+    expect(getByLabelText("commander tax 2")).toBeTruthy();
+    expect(getByLabelText("poison 3")).toBeTruthy();
+  });
+
+  it("is not hidden from assistive tech", () => {
+    const { container } = render(
+      <CounterChips counters={counters({ tax: 2 })} />,
+    );
+    expect(container.querySelector("[aria-hidden='true']")).toBeNull();
+  });
+
+  it("names custom counters in full rather than abbreviated", () => {
+    const { getByLabelText } = render(
+      <CounterChips counters={counters({ custom: [{ id: "a", name: "Radiation", value: 3 }] })} />,
+    );
+    expect(getByLabelText("Radiation 3")).toBeTruthy();
+  });
+
   it("hides custom counters sitting at zero", () => {
     const { container } = render(
       <CounterChips

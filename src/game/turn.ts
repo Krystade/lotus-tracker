@@ -17,8 +17,18 @@ export function nextActivePlayerId(
   order: string[],
 ): string {
   if (players.length === 0) return currentId;
-  const seated = order.filter((id) => players.some((p) => p.id === id));
-  const ring = seated.includes(currentId) ? seated : players.map((p) => p.id);
+
+  // Dedupe: a corrupt layout that places one seat twice would otherwise pin
+  // the turn on that seat forever.
+  const seated = [...new Set(order)].filter((id) =>
+    players.some((p) => p.id === id),
+  );
+  // A player the layout never placed still has to get turns; append them
+  // rather than dropping them out of the rotation entirely.
+  const unplaced = players
+    .map((p) => p.id)
+    .filter((id) => !seated.includes(id));
+  const ring = [...seated, ...unplaced];
 
   const idx = ring.indexOf(currentId);
   const start = idx === -1 ? 0 : idx;

@@ -1,13 +1,17 @@
 import { POISON_LETHAL, type CounterKey, type CounterSet } from "../state/types";
 
-/** Abbreviated so up to six chips still fit across a narrow tile. */
-const LABELS: Array<[CounterKey, string]> = [
-  ["tax", "TAX"],
-  ["poison", "PSN"],
-  ["energy", "NRG"],
-  ["experience", "EXP"],
-  ["storm", "STM"],
-  ["charge", "CHG"],
+/**
+ * Abbreviated so up to six chips still fit across a narrow tile. The full name
+ * is what assistive tech announces — the short form is purely for sighted
+ * players reading a tile from across the table.
+ */
+const LABELS: Array<[CounterKey, short: string, full: string]> = [
+  ["tax", "TAX", "commander tax"],
+  ["poison", "PSN", "poison"],
+  ["energy", "NRG", "energy"],
+  ["experience", "EXP", "experience"],
+  ["storm", "STM", "storm"],
+  ["charge", "CHG", "charge"],
 ];
 
 /**
@@ -25,21 +29,28 @@ export function CounterChips({ counters }: { counters: CounterSet }) {
   if (standard.length === 0 && custom.length === 0) return null;
 
   return (
-    <div className="tile__chips" aria-hidden>
-      {standard.map(([key, label]) => (
+    <div className="tile__chips">
+      {standard.map(([key, short, full]) => (
         <span
           key={key}
+          role="img"
+          aria-label={`${full} ${counters[key]}`}
           className={`tile__chip${
             key === "poison" && counters.poison >= POISON_LETHAL
               ? " tile__chip--warn"
               : ""
           }`}
         >
-          {label} {counters[key]}
+          {short} {counters[key]}
         </span>
       ))}
       {custom.map((c) => (
-        <span key={c.id} className="tile__chip">
+        <span
+          key={c.id}
+          role="img"
+          aria-label={`${c.name} ${c.value}`}
+          className="tile__chip"
+        >
           {c.name.slice(0, 3).toUpperCase()} {c.value}
         </span>
       ))}

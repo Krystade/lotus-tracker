@@ -250,12 +250,15 @@ input {
 .tile__chips {
   position: absolute;
   bottom: 8px;
-  left: 12px;
-  right: 52%;
+  left: 10px;
+  /* Stops short of the turn pill, which sits bottom-center by default; with
+     small chips this still fits two per row, so six counters wrap to three
+     short rows rather than a tall column climbing over the life total. */
+  right: 62%;
   z-index: 3;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   pointer-events: none;
 }
 
@@ -263,10 +266,10 @@ input {
   background: rgba(0, 0, 0, 0.24);
   color: currentColor;
   border-radius: 999px;
-  padding: 4px 9px;
-  font-size: 0.68rem;
+  padding: 3px 7px;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   white-space: nowrap;
 }
 

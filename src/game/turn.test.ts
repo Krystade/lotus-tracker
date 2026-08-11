@@ -66,6 +66,33 @@ describe("nextActivePlayerId", () => {
     const players = mkPlayers(["p0", "p1"]);
     expect(nextActivePlayerId(players, "p0", [])).toBe("p1");
   });
+
+  it("never starves a player the layout failed to place", () => {
+    // A corrupt layout can place fewer seats than there are players (e.g. two
+    // placements for one seat leaves another with none). Such a player must
+    // still get turns rather than being skipped forever.
+    const players = mkPlayers(["p0", "p1", "p2", "p3"]);
+    const order = ["p0", "p1", "p2"]; // p3 has no placement
+    const seen = new Set<string>();
+    let current = "p0";
+    for (let i = 0; i < 8; i++) {
+      current = nextActivePlayerId(players, current, order);
+      seen.add(current);
+    }
+    expect([...seen].sort()).toEqual(["p0", "p1", "p2", "p3"]);
+  });
+
+  it("does not visit a seat twice per lap when a layout duplicates it", () => {
+    const players = mkPlayers(["p0", "p1", "p2"]);
+    const order = ["p0", "p0", "p1", "p2"]; // p0 placed twice
+    const lap = [];
+    let current = "p0";
+    for (let i = 0; i < 3; i++) {
+      current = nextActivePlayerId(players, current, order);
+      lap.push(current);
+    }
+    expect(lap).toEqual(["p1", "p2", "p0"]);
+  });
 });
 
 describe("advanceTurn", () => {
