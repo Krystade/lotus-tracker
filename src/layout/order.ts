@@ -50,3 +50,17 @@ export function clockwiseSeatOrder(layout: LayoutConfig): string[] {
     .sort((a, b) => angle(a) - angle(b) || a.seat - b.seat)
     .map((s) => s.id);
 }
+
+/**
+ * Arranges anything keyed by player id to match `order`, so lists of seats
+ * read the same way turns run. Ids the layout does not place keep their
+ * relative position at the end rather than disappearing. Returns a new array.
+ */
+export function sortBySeatOrder<T extends { id: string }>(
+  items: T[],
+  order: string[],
+): T[] {
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const at = (item: T) => rank.get(item.id) ?? Number.POSITIVE_INFINITY;
+  return [...items].sort((a, b) => at(a) - at(b));
+}

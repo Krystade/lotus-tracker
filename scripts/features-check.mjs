@@ -38,9 +38,11 @@ await openMenu();
 await page.getByText(/Random first player/).click();
 await page.waitForTimeout(3600); // let the spin land
 const randText = (await page.locator(".rand__result").innerText()).trim();
-const wonIdx = await page.evaluate(() => {
-  const seats = [...document.querySelectorAll(".rand__seat")];
-  return seats.findIndex((s) => s.classList.contains("rand__seat--won"));
+// Read the id off the winning seat rather than its position: seats are
+// listed in clockwise order, so index no longer equals seat number.
+const wonId = await page.evaluate(() => {
+  const won = document.querySelector(".rand__seat--won");
+  return won ? won.getAttribute("data-player-id") : null;
 });
 // commit happens only on Start (dismissing must not mutate the game).
 await page.getByRole("button", { name: "Start", exact: true }).click();
@@ -48,8 +50,8 @@ await page.waitForTimeout(250);
 const turn = (await st()).turn;
 const randOk =
   /goes first/.test(randText) &&
-  wonIdx >= 0 &&
-  turn.activePlayerId === `p${wonIdx}` &&
+  !!wonId &&
+  turn.activePlayerId === wonId &&
   turn.turnNumber === 1;
 
 // --- Player name ---

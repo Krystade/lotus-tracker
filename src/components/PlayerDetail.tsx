@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
+import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
 import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
 import {
@@ -25,6 +26,9 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   // inside the selector would return a new reference each render and trigger an
   // infinite useSyncExternalStore loop.
   const players = useStore((s) => s.game.players);
+  // Stable object reference; the seat order is derived in render, never in a
+  // selector (a selector returning a fresh array would loop).
+  const layout = useStore((s) => s.game.layout);
   // The seat's rotation so the panel opens facing that player (returns a stable
   // number primitive — safe selector).
   const rotation = useStore(
@@ -47,7 +51,11 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const [newCounter, setNewCounter] = useState("");
 
   const player = players.find((p) => p.id === playerId);
-  const others = players.filter((p) => p.id !== playerId);
+  // Opponents listed the way turns run, so the grid reads round the table.
+  const others = sortBySeatOrder(
+    players.filter((p) => p.id !== playerId),
+    clockwiseSeatOrder(layout),
+  );
 
   useEffect(() => {
     setNameDraft(player?.name ?? "");

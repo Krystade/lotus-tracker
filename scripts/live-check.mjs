@@ -206,17 +206,19 @@ await openMenu();
 await page.getByText(/Random first player/).click();
 await page.waitForTimeout(4000); // let the spin land
 const randTxt = (await page.locator(".rand__result").innerText()).trim();
-const wonIdx = await page.evaluate(() => {
-  const seats = [...document.querySelectorAll(".rand__seat")];
-  return seats.findIndex((s) => s.classList.contains("rand__seat--won"));
+// Read the id off the winning seat rather than its position: seats are
+// listed in clockwise order, so index no longer equals seat number.
+const wonId = await page.evaluate(() => {
+  const won = document.querySelector(".rand__seat--won");
+  return won ? won.getAttribute("data-player-id") : null;
 });
 await page.getByRole("button", { name: "Start", exact: true }).click();
 await page.waitForTimeout(320);
 const tr = (await game()).turn;
 check(
   "spin lands and Start commits that seat",
-  wonIdx >= 0 && tr.activePlayerId === `p${wonIdx}` && tr.turnNumber === 1,
-  `${randTxt} -> active=${tr.activePlayerId} turn=${tr.turnNumber}`,
+  !!wonId && tr.activePlayerId === wonId && tr.turnNumber === 1,
+  `${randTxt} -> won=${wonId} active=${tr.activePlayerId} turn=${tr.turnNumber}`,
 );
 
 // --- reset life (double-tap guard) -----------------------------------

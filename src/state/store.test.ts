@@ -21,6 +21,75 @@ beforeEach(() => {
   s().newGame({ playerCount: 4, startingLife: 40 });
 });
 
+describe("layout validation", () => {
+  // A layout that does not place every player is what allowed a seat to be
+  // starved of turns (and, with a duplicate placement, the turn to lock up).
+  // Such a layout must be rejected outright rather than merely tolerated.
+  const fourSeats = ["p0", "p1", "p2", "p3"];
+
+  it("rejects a layout that leaves a player unplaced", () => {
+    s().applyLayout({
+      id: "gap",
+      name: "gap",
+      playerCount: 4,
+      rows: 2,
+      cols: 2,
+      builtIn: false,
+      placements: [
+        { playerId: "p0", row: 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p1", row: 1, col: 2, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p2", row: 2, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+      ],
+    });
+    const placed = s().game.layout.placements.map((p) => p.playerId).sort();
+    expect(placed).toEqual(fourSeats);
+  });
+
+  it("rejects a layout that places one seat twice", () => {
+    s().applyLayout({
+      id: "dup",
+      name: "dup",
+      playerCount: 4,
+      rows: 2,
+      cols: 2,
+      builtIn: false,
+      placements: [
+        { playerId: "p0", row: 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p0", row: 1, col: 2, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p1", row: 2, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+        { playerId: "p2", row: 2, col: 2, rowSpan: 1, colSpan: 1, rotation: 0 },
+      ],
+    });
+    const placed = s().game.layout.placements.map((p) => p.playerId).sort();
+    expect(placed).toEqual(fourSeats);
+  });
+
+  it("still accepts a valid custom layout", () => {
+    s().applyLayout(twoPlayerLayout);
+    expect(s().game.layout.id).toBe("t");
+  });
+
+  it("every seat gets a turn after a malformed layout is rejected", () => {
+    s().applyLayout({
+      id: "gap2",
+      name: "gap2",
+      playerCount: 4,
+      rows: 2,
+      cols: 2,
+      builtIn: false,
+      placements: [
+        { playerId: "p0", row: 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 },
+      ],
+    });
+    const seen = new Set<string>();
+    for (let i = 0; i < 8; i++) {
+      s().passTurn();
+      seen.add(s().game.turn.activePlayerId);
+    }
+    expect([...seen].sort()).toEqual(fourSeats);
+  });
+});
+
 describe("store correctness", () => {
   it("ignores non-finite setLife but accepts real values", () => {
     s().setLife("p0", NaN);

@@ -19,6 +19,7 @@ import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat } from "../layout/colors";
 import { clockwiseSeatOrder } from "../layout/order";
 import { defaultLayoutFor } from "../layout/presets";
+import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
@@ -502,6 +503,15 @@ export const useStore = create<StoreState>()(
             layout.playerCount,
             s.game.startingLife,
           );
+          // A layout that does not place every seat exactly once cannot
+          // describe the table — fall back to the preset rather than seat
+          // players at coordinates that do not exist.
+          const safeLayout = layoutCoversSeats(
+            layout,
+            players.map((p) => p.id),
+          )
+            ? layout
+            : defaultLayoutFor(players.length);
           const activeExists = players.some(
             (p) => p.id === s.game.turn.activePlayerId,
           );
@@ -509,7 +519,7 @@ export const useStore = create<StoreState>()(
             game: {
               ...s.game,
               players,
-              layout,
+              layout: safeLayout,
               turn: activeExists
                 ? s.game.turn
                 : { ...s.game.turn, activePlayerId: players[0].id },
@@ -570,10 +580,13 @@ export const useStore = create<StoreState>()(
           : current.game;
         // Guard against a persisted layout / active turn that no longer matches
         // the players (corrupt storage): fall back to sane defaults.
-        const ids = new Set(players.map((pl) => pl.id));
         const layoutOk =
           rawGame.layout?.playerCount === players.length &&
-          rawGame.layout.placements.every((pl) => ids.has(pl.playerId));
+          layoutCoversSeats(
+            rawGame.layout,
+            players.map((pl) => pl.id),
+          );
+        const ids = new Set(players.map((pl) => pl.id));
         const game = {
           ...rawGame,
           layout: layoutOk ? rawGame.layout : defaultLayoutFor(players.length),

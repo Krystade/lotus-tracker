@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
+import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
 
 export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
   // Select the stable players array, then filter in-render (a filtered selector
   // returns a new array each call and would loop).
   const allPlayers = useStore((s) => s.game.players);
+  const layout = useStore((s) => s.game.layout);
   const setFirstPlayer = useStore((s) => s.setFirstPlayer);
-  const players = allPlayers.filter((p) => !p.eliminated);
+  // Seats shown the way turns run, so the spin reads round the table.
+  const players = sortBySeatOrder(
+    allPlayers.filter((p) => !p.eliminated),
+    clockwiseSeatOrder(layout),
+  );
 
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -61,6 +67,7 @@ export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
             {players.map((p) => (
               <div
                 key={p.id}
+                data-player-id={p.id}
                 className={`rand__seat${
                   highlightId === p.id ? " rand__seat--on" : ""
                 }${chosenId === p.id ? " rand__seat--won" : ""}`}

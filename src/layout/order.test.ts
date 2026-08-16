@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockwiseSeatOrder } from "./order";
+import { clockwiseSeatOrder, sortBySeatOrder } from "./order";
 import { defaultLayoutFor } from "./presets";
 import type { LayoutConfig, Placement, Rotation } from "../state/types";
 
@@ -142,5 +142,44 @@ describe("clockwiseSeatOrder — degenerate layouts", () => {
 
   it("returns an empty list for a layout with no placements", () => {
     expect(clockwiseSeatOrder(layout(1, 1, []))).toEqual([]);
+  });
+});
+
+describe("sortBySeatOrder", () => {
+  const seat = (id: string) => ({ id, name: id });
+
+  it("orders items to match the clockwise seat order", () => {
+    const order = clockwiseSeatOrder(defaultLayoutFor(4)); // p0,p1,p3,p2
+    const sorted = sortBySeatOrder(
+      [seat("p0"), seat("p1"), seat("p2"), seat("p3")],
+      order,
+    );
+    expect(sorted.map((s) => s.id)).toEqual(["p0", "p1", "p3", "p2"]);
+  });
+
+  it("keeps a subset in seat order", () => {
+    // The commander-damage grid lists opponents only.
+    const order = clockwiseSeatOrder(defaultLayoutFor(4));
+    const sorted = sortBySeatOrder([seat("p2"), seat("p3"), seat("p1")], order);
+    expect(sorted.map((s) => s.id)).toEqual(["p1", "p3", "p2"]);
+  });
+
+  it("puts anything the layout does not place at the end", () => {
+    const sorted = sortBySeatOrder(
+      [seat("pX"), seat("p1"), seat("p0")],
+      ["p0", "p1"],
+    );
+    expect(sorted.map((s) => s.id)).toEqual(["p0", "p1", "pX"]);
+  });
+
+  it("leaves the input order alone when there is no seat order", () => {
+    const sorted = sortBySeatOrder([seat("p1"), seat("p0")], []);
+    expect(sorted.map((s) => s.id)).toEqual(["p1", "p0"]);
+  });
+
+  it("does not mutate the array it is given", () => {
+    const input = [seat("p2"), seat("p0")];
+    sortBySeatOrder(input, ["p0", "p2"]);
+    expect(input.map((s) => s.id)).toEqual(["p2", "p0"]);
   });
 });

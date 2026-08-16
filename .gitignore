@@ -7,3 +7,6 @@ dist-ssr
 coverage
 screenshots
 test-results
+
+# TypeScript incremental build artifact
+tsconfig.tsbuildinfo
