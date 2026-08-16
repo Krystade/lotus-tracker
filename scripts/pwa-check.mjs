@@ -1,8 +1,9 @@
 // Verifies the built PWA: manifest + icons, service worker, and offline reload.
-import { chromium } from "@playwright/test";
+import { chromium, webkit } from "@playwright/test";
+const engine = process.env.BROWSER === "webkit" ? webkit : chromium;
 
 const BASE = process.argv[2] || "http://localhost:5190/";
-const b = await chromium.launch();
+const b = await engine.launch();
 const ctx = await b.newContext({
   viewport: { width: 375, height: 812 },
   deviceScaleFactor: 2,

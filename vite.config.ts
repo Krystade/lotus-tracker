@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // We register the worker ourselves in main.tsx so the failure path has a
+      // .catch(); the generated snippet does not.
+      injectRegister: false,
       includeAssets: ["apple-touch-icon.png", "icon.svg"],
       manifest: {
         name: "Lotus Tracker",
@@ -33,6 +36,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        // Set explicitly: with injectRegister disabled the plugin no longer
+        // supplies clientsClaim, and without it the worker does not control
+        // the very first page load — so a first visit would not be offline
+        // capable until the next reload.
+        clientsClaim: true,
+        skipWaiting: true,
       },
     }),
   ],
