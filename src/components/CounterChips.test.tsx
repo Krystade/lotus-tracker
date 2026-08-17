@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { CounterChips } from "./CounterChips";
 import type { CounterSet } from "../state/types";
 
@@ -121,5 +121,43 @@ describe("CounterChips", () => {
       />,
     );
     expect(chips(container)).toEqual([]);
+  });
+});
+
+describe("CounterChips — tapping", () => {
+  it("reports which standard counter was tapped", () => {
+    const picked: unknown[] = [];
+    const { getByLabelText } = render(
+      <CounterChips
+        counters={counters({ poison: 3 })}
+        onPick={(r) => picked.push(r)}
+      />,
+    );
+    fireEvent.click(getByLabelText(/poison 3, tap to adjust/i));
+    expect(picked).toEqual([{ kind: "standard", key: "poison" }]);
+  });
+
+  it("reports which custom counter was tapped", () => {
+    const picked: unknown[] = [];
+    const { getByLabelText } = render(
+      <CounterChips
+        counters={counters({ custom: [{ id: "c9", name: "Rad", value: 1 }] })}
+        onPick={(r) => picked.push(r)}
+      />,
+    );
+    fireEvent.click(getByLabelText(/Rad 1, tap to adjust/i));
+    expect(picked).toEqual([{ kind: "custom", id: "c9" }]);
+  });
+
+  it("stays non-interactive when no handler is given", () => {
+    const { container } = render(<CounterChips counters={counters({ tax: 2 })} />);
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("spreads across the bottom only when there is more than one chip", () => {
+    const one = render(<CounterChips counters={counters({ tax: 2 })} />);
+    expect(one.container.querySelector(".tile__chips--multi")).toBeNull();
+    const many = render(<CounterChips counters={counters({ tax: 2, poison: 1 })} />);
+    expect(many.container.querySelector(".tile__chips--multi")).not.toBeNull();
   });
 });

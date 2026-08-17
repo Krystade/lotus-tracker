@@ -12,7 +12,8 @@ import { formatClock } from "../util/format";
 import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
-import { CounterChips } from "./CounterChips";
+import { CounterChips, type CounterRef } from "./CounterChips";
+import { CounterQuickAdjust } from "./CounterQuickAdjust";
 import { Digits } from "./Digits";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
@@ -21,7 +22,9 @@ interface Props {
   onOpenDetail: (playerId: string) => void;
 }
 
-const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 85 };
+// Sits just above the counter-chip row that owns the bottom edge. Still
+// draggable anywhere; this is only where it starts.
+const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 76 };
 const DRAG_THRESHOLD = 6;
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -53,6 +56,8 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   });
   const scale = useStore((s) => s.settings.turnTimerScale);
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
+  // Which counter chip, if any, has its quick-adjust popover open.
+  const [quickCounter, setQuickCounter] = useState<CounterRef | null>(null);
   // Share of the turn budget still on the clock, for the countdown ring.
   const turnFraction =
     turn.budgetSec > 0
@@ -273,7 +278,7 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
 
-        <CounterChips counters={player.counters} />
+        <CounterChips counters={player.counters} onPick={setQuickCounter} />
 
         <button
           className="tile__more"
@@ -311,6 +316,14 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
           </button>
         )}
       </div>
+
+      {quickCounter && (
+        <CounterQuickAdjust
+          playerId={pid}
+          target={quickCounter}
+          onClose={() => setQuickCounter(null)}
+        />
+      )}
     </div>
   );
 }

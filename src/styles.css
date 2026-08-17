@@ -240,37 +240,50 @@ input {
 }
 
 /* Counter chips and ⋯ live on the tile's OUTER edge (content-bottom, nearest
-   the player) so they never collide with the center hex/seam.
-
-   Counters in play are shown on the tile so they can be read without opening
-   the detail panel. They wrap rather than overflow when several are active. */
-/* Confined to the bottom-left, where the single TAX chip used to live: the
-   turn pill sits bottom-center by default and the detail button bottom-right.
-   Extra chips wrap upward rather than running under either. */
+   the player) so they never collide with the center hex/seam. Counters in play
+   are shown here so they can be read — and adjusted — without opening the
+   detail panel. */
 .tile__chips {
   position: absolute;
-  bottom: 8px;
+  bottom: 6px;
   left: 10px;
-  /* Stops short of the turn pill, which sits bottom-center by default; with
-     small chips this still fits two per row, so six counters wrap to three
-     short rows rather than a tall column climbing over the life total. */
-  right: 62%;
-  z-index: 3;
+  /* Clear of the detail button in the corner; otherwise the row owns the
+     tile's whole bottom edge. */
+  right: 58px;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  pointer-events: none;
+  gap: 4px;
+}
+
+/* Several counters spread evenly across the bottom; a lone chip keeps its
+   natural width instead of stretching into a banner. */
+.tile__chips--multi .tile__chip {
+  flex: 1 1 auto;
+  justify-content: center;
 }
 
 .tile__chip {
-  background: rgba(0, 0, 0, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: none;
+  background: rgba(0, 0, 0, 0.34);
   color: currentColor;
   border-radius: 999px;
-  padding: 3px 7px;
-  font-size: 0.6rem;
+  padding: 5px 11px;
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
   white-space: nowrap;
+  font-family: inherit;
+}
+
+/* The turn pill is draggable and may be parked over the row; chips sit above
+   it so they stay readable and tappable. */
+.tile__chip:active {
+  transform: scale(0.94);
 }
 
 /* Poison at the lethal threshold, matching the detail panel's warning row. */
@@ -1206,4 +1219,73 @@ input[type="text"] {
   padding-bottom: 0.04em;
   /* Keeps adjacent marks (69, 96) from fusing into one continuous rule. */
   margin: 0 0.03em;
+}
+
+/* ---------- counter quick-adjust ---------- */
+/* Small popover for nudging one counter, opened by tapping its chip. Rotated
+   to the seat by .rot-wrap, same as the detail panel. */
+.quick {
+  width: min(76vw, 260px);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--panel);
+  /* Explicit: the popover renders inside the tile, which sets `color` to suit
+     its seat colour — on a light seat that is near-black, which would put dark
+     text on this dark panel. */
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+.quick__head {
+  padding: 10px 14px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.quick__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+}
+
+.quick__btn {
+  flex: 0 0 auto;
+  width: 68px;
+  height: 68px;
+  border: none;
+  border-radius: 18px;
+  background: var(--row);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.quick__btn:active {
+  background: var(--panel-2);
+}
+
+.quick__val {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.quick__done {
+  width: 100%;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: var(--muted);
+  padding: 12px;
+  font-weight: 800;
+  font-size: 0.9rem;
 }
