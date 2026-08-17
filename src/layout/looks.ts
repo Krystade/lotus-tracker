@@ -128,12 +128,27 @@ export function allLookIds(): string[] {
   return HUES.flatMap((h) => LOOK_STYLES.map((s) => lookId(h.id, s.id)));
 }
 
+/**
+ * The two derived colours every style paints with.
+ *
+ * Variety comes from rotating hue as well as shifting lightness. A dark hue
+ * takes white text and so has almost no room to lighten; rotating it toward a
+ * neighbour is just as visible and costs no contrast.
+ *
+ * Shared by the catalogue and the fallback deliberately. When the fallback
+ * derived its own palette it skipped the contrast clamp entirely — harmless
+ * only because the fallback happens to paint no layers, and invisible to the
+ * catalogue test, which iterates allLookIds() and never sees it.
+ */
+function paletteFor(base: string): { lo: string; hi: string } {
+  return {
+    lo: within(rotateHue(base, -22, 0.05), LO),
+    hi: within(rotateHue(base, 20, 0.08), HI),
+  };
+}
+
 function build(hue: Hue, style: LookStyle): ResolvedLook {
-  // Variety comes from rotating hue as well as shifting lightness. A dark hue
-  // takes white text and so has almost no room to lighten; rotating it toward
-  // a neighbour is just as visible and costs no contrast.
-  const lo = within(rotateHue(hue.base, -22, 0.05), LO);
-  const hi = within(rotateHue(hue.base, 20, 0.08), HI);
+  const { lo, hi } = paletteFor(hue.base);
   const vars: Record<string, string> = {
     "--look-base": hue.base,
     "--look-lo": lo,
@@ -177,8 +192,8 @@ export function resolveLook(
     base: color,
     vars: {
       "--look-base": color,
-      "--look-lo": shift(color, LO),
-      "--look-hi": shift(color, HI),
+      "--look-lo": paletteFor(color).lo,
+      "--look-hi": paletteFor(color).hi,
     },
     animated: false,
     layers: 0,

@@ -111,3 +111,18 @@ describe("the contrast guarantee", () => {
     expect(contrastRatio("#ffffff", "#000000")).toBeGreaterThan(20);
   });
 });
+
+describe("the fallback palette", () => {
+  // The fallback is not in allLookIds(), so the catalogue sweep above never
+  // sees it. It once derived its own colours and skipped the contrast clamp.
+  it.each(["#123456", "#E4B33D", "#ffffff", "#000000"])(
+    "keeps its derived colours legible for %s",
+    (colour) => {
+      const look = resolveLook("not-a-real-look", colour);
+      const ink = textOn(look.base);
+      for (const v of ["--look-lo", "--look-hi"]) {
+        expect(contrastRatio(ink, look.vars[v])).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+});
