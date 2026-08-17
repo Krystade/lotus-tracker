@@ -127,6 +127,14 @@ export function SettingsPanel({ onClose }: Props) {
               />
             </label>
             <label className="toggle">
+              <span>Animated backgrounds</span>
+              <input
+                type="checkbox"
+                checked={settings.animateLooks}
+                onChange={(e) => update({ animateLooks: e.target.checked })}
+              />
+            </label>
+            <label className="toggle">
               <span>Keep screen awake</span>
               <input
                 type="checkbox"

@@ -58,6 +58,7 @@ const DEFAULT_SETTINGS: Settings = {
   keepAwake: true,
   turnTimerEnabled: true,
   effectsOn: true,
+  animateLooks: true,
 };
 
 function emptyCounters(): CounterSet {

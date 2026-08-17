@@ -42,6 +42,20 @@ export default function App() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
+  // Look animation is frozen by the setting, and also whenever the tab is
+  // hidden — CSS animations keep running when a page is backgrounded, unlike
+  // rAF, so this is worth doing explicitly on a screen held awake for hours.
+  const animateLooks = useStore((s) => s.settings.animateLooks);
+  const [hidden, setHidden] = useState(
+    typeof document !== "undefined" && document.visibilityState === "hidden",
+  );
+  useEffect(() => {
+    const onVis = () => setHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+  const still = !animateLooks || hidden;
+
   // Escape closes any open overlay/panel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -55,7 +69,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app${still ? " app--still" : ""}`}>
       <Board onOpenDetail={setDetailId} />
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}

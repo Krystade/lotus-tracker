@@ -1295,28 +1295,28 @@ input[type="text"] {
    kick on the life total, scaled by how big the swing was. Driven by data-fx
    on the tile, set for a few hundred ms by useLifeFeedback. */
 .tile[data-fx] {
-  --fx-dur: 260ms;
-  --fx-kick: 0.94;
-  --fx-wash: 0.4;
+  --fx-dur: 330ms;
+  --fx-kick: 0.92;
+  --fx-wash: 0.5;
 }
 .tile[data-fx-level="2"] {
-  --fx-dur: 400ms;
-  --fx-kick: 0.88;
-  --fx-wash: 0.55;
+  --fx-dur: 500ms;
+  --fx-kick: 0.84;
+  --fx-wash: 0.66;
 }
 .tile[data-fx-level="3"] {
-  --fx-dur: 650ms;
-  --fx-kick: 0.8;
-  --fx-wash: 0.72;
+  --fx-dur: 780ms;
+  --fx-kick: 0.74;
+  --fx-wash: 0.83;
 }
 .tile[data-fx="heal"] {
-  --fx-kick: 1.07;
+  --fx-kick: 1.14;
 }
 .tile[data-fx="heal"][data-fx-level="2"] {
-  --fx-kick: 1.12;
+  --fx-kick: 1.18;
 }
 .tile[data-fx="heal"][data-fx-level="3"] {
-  --fx-kick: 1.2;
+  --fx-kick: 1.24;
 }
 
 /* The wash tints the seat itself and nothing else: it sits above the tile's
@@ -1331,8 +1331,18 @@ input[type="text"] {
   opacity: 0;
 }
 
+/* Ramp, hold, release. The previous curve started at peak and decayed
+   immediately, so the flash was never actually at full strength for any
+   interval - which is why it went unnoticed. The hold is the fix; the longer
+   duration is secondary. */
 @keyframes fxWash {
   0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--fx-wash);
+  }
+  44% {
     opacity: var(--fx-wash);
   }
   100% {
@@ -1600,4 +1610,373 @@ input[type="text"] {
   border-radius: 9px;
   padding: 9px 18px;
   font-weight: 800;
+}
+
+/* ---------- looks ---------- */
+/* A look is a hue crossed with a style. The hue arrives as --look-base/-lo/-hi
+   custom properties on the tile; each style below is one rule set that reads
+   them, so six hues do not mean six copies of anything.
+
+   Decorative layers live in .tile__look, which sits beneath every child of the
+   tile: the life total, counter chips, turn pill and detail button all stay
+   crisp over any background. The container is outside .tile__content on
+   purpose - a background has no orientation, so it should not rotate with the
+   seat and pay for the compositing. */
+.look {
+  background: var(--look-base);
+}
+
+.tile__look {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tile__look span {
+  position: absolute;
+  display: block;
+}
+
+/* --- static --- */
+.look[data-style="fade"] {
+  background: linear-gradient(150deg, var(--look-base) 0%, var(--look-lo) 100%);
+}
+
+.look[data-style="stripe"] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--look-base) 0 18px,
+    var(--look-lo) 18px 36px
+  );
+}
+
+/* --- animated ---
+   Every style moves by translation, scale or noise. Nothing rotates: a
+   rotating element has a fixed pivot the eye locks onto, which reads
+   mechanical. Periods within a style are deliberately mismatched so the
+   composite never resolves into a visible loop. */
+
+.look[data-style="drift"] .tile__look span {
+  width: 150%;
+  height: 150%;
+  border-radius: 50%;
+}
+.look[data-style="drift"] .tile__look span:nth-child(1) {
+  background: radial-gradient(circle, var(--look-hi) 0%, transparent 62%);
+  animation: lkDrift1 16s ease-in-out infinite;
+}
+.look[data-style="drift"] .tile__look span:nth-child(2) {
+  background: radial-gradient(circle, var(--look-lo) 0%, transparent 62%);
+  animation: lkDrift2 23s ease-in-out infinite;
+}
+@keyframes lkDrift1 {
+  0%, 100% { transform: translate(-25%, -20%); }
+  50% { transform: translate(10%, 15%); }
+}
+@keyframes lkDrift2 {
+  0%, 100% { transform: translate(15%, 20%); }
+  50% { transform: translate(-20%, -15%); }
+}
+
+.look[data-style="lava"] .tile__look span {
+  width: 190%;
+  height: 130%;
+  border-radius: 46% 54% 58% 42%;
+}
+.look[data-style="lava"] .tile__look span:nth-child(1) {
+  background: radial-gradient(ellipse, var(--look-hi) 0%, transparent 60%);
+  animation: lkLava1 29s ease-in-out infinite;
+}
+.look[data-style="lava"] .tile__look span:nth-child(2) {
+  background: radial-gradient(ellipse, var(--look-lo) 0%, transparent 58%);
+  animation: lkLava2 41s ease-in-out infinite;
+}
+.look[data-style="lava"] .tile__look span:nth-child(3) {
+  background: radial-gradient(ellipse, var(--look-hi) 0%, transparent 52%);
+  animation: lkLava3 53s ease-in-out infinite;
+  opacity: 0.6;
+}
+@keyframes lkLava1 {
+  0%, 100% { transform: translate(-30%, -25%); }
+  33% { transform: translate(5%, 10%); }
+  66% { transform: translate(-15%, 20%); }
+}
+@keyframes lkLava2 {
+  0%, 100% { transform: translate(10%, 25%); }
+  50% { transform: translate(-25%, -20%); }
+}
+@keyframes lkLava3 {
+  0%, 100% { transform: translate(20%, -30%); }
+  50% { transform: translate(-10%, 25%); }
+}
+
+.look[data-style="nebula"] .tile__look span {
+  width: 120%;
+  height: 120%;
+  border-radius: 50%;
+}
+.look[data-style="nebula"] .tile__look span:nth-child(1) {
+  background: radial-gradient(circle, var(--look-hi) 0%, transparent 55%);
+  animation: lkNeb1 23s ease-in-out infinite;
+}
+.look[data-style="nebula"] .tile__look span:nth-child(2) {
+  background: radial-gradient(circle, var(--look-lo) 0%, transparent 55%);
+  animation: lkNeb2 31s ease-in-out infinite;
+}
+.look[data-style="nebula"] .tile__look span:nth-child(3) {
+  background: radial-gradient(circle, var(--look-hi) 0%, transparent 45%);
+  animation: lkNeb3 37s ease-in-out infinite;
+  opacity: 0.5;
+}
+@keyframes lkNeb1 {
+  0%, 100% { transform: translate(-30%, -30%) scale(1); }
+  50% { transform: translate(20%, 10%) scale(1.25); }
+}
+@keyframes lkNeb2 {
+  0%, 100% { transform: translate(25%, 15%) scale(1.15); }
+  50% { transform: translate(-15%, -25%) scale(0.9); }
+}
+@keyframes lkNeb3 {
+  0%, 100% { transform: translate(5%, 30%) scale(0.9); }
+  50% { transform: translate(-25%, -10%) scale(1.2); }
+}
+
+.look[data-style="ribbons"] .tile__look span {
+  top: -30%;
+  height: 160%;
+  width: 52%;
+}
+.look[data-style="ribbons"] .tile__look span:nth-child(1) {
+  left: -6%;
+  background: linear-gradient(90deg, transparent, var(--look-hi) 45%, transparent);
+  animation: lkRib1 17s ease-in-out infinite;
+}
+.look[data-style="ribbons"] .tile__look span:nth-child(2) {
+  left: 26%;
+  background: linear-gradient(90deg, transparent, var(--look-lo) 50%, transparent);
+  animation: lkRib2 23s ease-in-out infinite;
+  opacity: 0.85;
+}
+.look[data-style="ribbons"] .tile__look span:nth-child(3) {
+  left: 58%;
+  background: linear-gradient(90deg, transparent, var(--look-hi) 50%, transparent);
+  animation: lkRib3 29s ease-in-out infinite;
+  opacity: 0.7;
+}
+@keyframes lkRib1 {
+  0%, 100% { transform: translateX(-18%) skewX(-9deg) scaleY(1); }
+  50% { transform: translateX(22%) skewX(11deg) scaleY(1.15); }
+}
+@keyframes lkRib2 {
+  0%, 100% { transform: translateX(16%) skewX(8deg) scaleY(1.1); }
+  50% { transform: translateX(-20%) skewX(-10deg) scaleY(0.9); }
+}
+@keyframes lkRib3 {
+  0%, 100% { transform: translateX(-12%) skewX(6deg); }
+  50% { transform: translateX(18%) skewX(-8deg); }
+}
+
+.look[data-style="tide"] .tile__look span {
+  left: -25%;
+  width: 150%;
+  height: 120%;
+  border-radius: 44% 56% 50% 50%;
+}
+.look[data-style="tide"] .tile__look span:nth-child(1) {
+  background: radial-gradient(ellipse at 50% 40%, var(--look-hi) 0%, transparent 58%);
+  animation: lkTide1 21s ease-in-out infinite;
+}
+.look[data-style="tide"] .tile__look span:nth-child(2) {
+  background: radial-gradient(ellipse at 50% 60%, var(--look-lo) 0%, transparent 60%);
+  animation: lkTide2 33s ease-in-out infinite;
+}
+@keyframes lkTide1 {
+  0%, 100% { transform: translateY(28%) scaleX(1); }
+  50% { transform: translateY(-22%) scaleX(1.18); }
+}
+@keyframes lkTide2 {
+  0%, 100% { transform: translateY(-26%) scaleX(1.12); }
+  50% { transform: translateY(30%) scaleX(0.95); }
+}
+
+/* Centred by request: two concentric glows on mismatched periods, so the
+   breathing beats against itself rather than being one symmetric pulse. */
+.look[data-style="pulse"] .tile__look span {
+  left: 50%;
+  top: 50%;
+  width: 170%;
+  height: 170%;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+.look[data-style="pulse"] .tile__look span:nth-child(1) {
+  background: radial-gradient(circle, var(--look-hi) 0%, transparent 55%);
+  animation: lkPulse1 9s ease-in-out infinite;
+}
+.look[data-style="pulse"] .tile__look span:nth-child(2) {
+  background: radial-gradient(circle, var(--look-lo) 0%, transparent 42%);
+  animation: lkPulse2 14s ease-in-out infinite;
+  opacity: 0.6;
+}
+@keyframes lkPulse1 {
+  0%, 100% { transform: scale(0.62); opacity: 0.72; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+@keyframes lkPulse2 {
+  0%, 100% { transform: scale(1.1); opacity: 0.35; }
+  50% { transform: scale(0.6); opacity: 0.7; }
+}
+
+/* Noise is a pre-rasterised image, not a live filter: a live feTurbulence
+   recomputes every frame, which boils in place instead of drifting. */
+.look[data-style="smoke"] .tile__look span,
+.look[data-style="marble"] .tile__look span {
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: var(--look-noise);
+  /* One instance stretched over the whole oversized layer. Tiling the noise
+     put visible rectangular seams across the tile. */
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.look[data-style="smoke"] .tile__look span {
+  /* Kept well under full strength so the hue still reads as its own colour;
+     at full opacity the noise washed the seat out to near-grey. */
+  opacity: 0.62;
+  animation: lkSmoke 46s ease-in-out infinite;
+}
+.look[data-style="marble"] .tile__look span {
+  opacity: 0.68;
+  animation: lkMarble 60s ease-in-out infinite;
+}
+@keyframes lkSmoke {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6%, -5%) scale(1.12); }
+}
+@keyframes lkMarble {
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.16) translate(-3%, 2%); }
+}
+
+/* Motion governance: one class on the root freezes every look, and an
+   eliminated seat never animates. Pausing rather than unmounting keeps
+   resuming instant and avoids recomputing layout.
+
+   !important is load-bearing here, not laziness. Each style sets `animation`
+   as a shorthand, which resets animation-play-state to running, and those
+   selectors (.look[data-style=x] .tile__look span:nth-child(n)) outrank this
+   one. Without it the pause silently loses the cascade and the toggle does
+   nothing at all. */
+.app--still .tile__look span,
+.tile--out .tile__look span {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile__look span {
+    animation-play-state: paused !important;
+  }
+}
+
+/* ---------- look picker ---------- */
+/* Two axes rather than one grid: the catalogue is 66 combinations, but the
+   player only ever sees 6 colours and 11 styles. The big preview carries the
+   detail a 44px swatch cannot - motion is unreadable at swatch size. */
+.picker__label {
+  margin: 2px 0 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lookbig {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.lookbig__num {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+.huerow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.huedot {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.huedot.is-on {
+  border-color: #fff;
+}
+
+.stylerow {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.stylechip {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.stylechip.is-on {
+  border-color: #fff;
+}
+
+.stylechip__art {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 9px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* The roster swatch is a real look too, not a flat colour sample. */
+.rost__swatch {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }

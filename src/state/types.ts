@@ -85,6 +85,8 @@ export interface Settings {
   turnTimerEnabled: boolean;
   /** Flashes and kicks on damage, healing and death. */
   effectsOn: boolean;
+  /** Motion on animated tile looks. Off freezes them without unmounting. */
+  animateLooks: boolean;
 }
 
 export interface TurnState {

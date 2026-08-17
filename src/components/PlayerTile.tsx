@@ -174,14 +174,15 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   };
 
   // Contrast comes from the look's declared base colour, not from the rendered
-  // pixels, so a gradient or striped tile is as legible as a flat one.
+  // pixels, so a gradient, striped or animated tile is as legible as a flat
+  // one. The style's CSS reads the --look-* custom properties.
   const look = resolveLook(player.look, player.color);
   const tileStyle: CSSProperties = {
     gridRow: `${placement.row} / span ${placement.rowSpan}`,
     gridColumn: `${placement.col} / span ${placement.colSpan}`,
-    background: look.css,
     color: textOn(look.base),
-  };
+    ...look.vars,
+  } as CSSProperties;
 
   // Turn pill: a plain tap passes the turn; dragging repositions it (remembered
   // per player). Movement past a small threshold counts as a drag, not a tap.
@@ -218,13 +219,21 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
 
   return (
     <div
-      className={`tile${player.eliminated ? " tile--out" : ""}${
+      className={`tile look${player.eliminated ? " tile--out" : ""}${
         lethal ? " tile--lethal" : ""
       }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
+      data-style={look.styleId}
       data-fx={fx?.kind}
       data-fx-level={fx?.intensity}
     >
+      {look.layers > 0 && (
+        <div className="tile__look" aria-hidden>
+          {Array.from({ length: look.layers }, (_, i) => (
+            <span key={i} />
+          ))}
+        </div>
+      )}
       <div
         className="tile__content"
         ref={contentRef}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
-import { LOOKS, lookById } from "../layout/looks";
-import { textOn } from "../layout/colors";
+import { HUES, LOOK_STYLES, lookId, resolveLook } from "../layout/looks";
+import { LookPreview } from "./LookPreview";
 
 const LIFE_PRESETS = [20, 30, 40];
 
@@ -28,7 +28,8 @@ export function NewGameScreen({ onClose }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [draftName, setDraftName] = useState("");
-  const [draftLook, setDraftLook] = useState(LOOKS[0].id);
+  const [draftHue, setDraftHue] = useState(HUES[0].id);
+  const [draftStyle, setDraftStyle] = useState(LOOK_STYLES[0].id);
   const [setupName, setSetupName] = useState("");
 
   const isCustom = customLife.trim() !== "";
@@ -44,17 +45,22 @@ export function NewGameScreen({ onClose }: Props) {
     setEditing(id);
     if (id === "new") {
       setDraftName("");
-      setDraftLook(LOOKS[picked.length % LOOKS.length].id);
+      // Offer the next unused seat colour rather than always the first.
+      setDraftHue(HUES[picked.length % HUES.length].id);
+      setDraftStyle(LOOK_STYLES[0].id);
     } else {
       const p = profiles.find((x) => x.id === id);
       setDraftName(p?.name ?? "");
-      setDraftLook(p?.look ?? LOOKS[0].id);
+      const current = resolveLook(p?.look, HUES[0].base);
+      setDraftHue(current.hueId === "custom" ? HUES[0].id : current.hueId);
+      setDraftStyle(current.styleId);
     }
   };
 
   const commitEditor = () => {
-    if (editing === "new") addProfile(draftName, draftLook);
-    else if (editing) updateProfile(editing, { name: draftName, look: draftLook });
+    const look = lookId(draftHue, draftStyle);
+    if (editing === "new") addProfile(draftName, look);
+    else if (editing) updateProfile(editing, { name: draftName, look });
     setEditing(null);
   };
 
@@ -115,15 +121,12 @@ export function NewGameScreen({ onClose }: Props) {
             <h3>Players</h3>
             <div className="roster">
               {profiles.map((p) => {
-                const look = lookById(p.look) ?? LOOKS[0];
+                const look = resolveLook(p.look, HUES[0].base);
                 const on = picked.includes(p.id);
                 return (
                   <div key={p.id} className={`rost${on ? " rost--on" : ""}`}>
                     <button className="rost__pick" onClick={() => toggle(p.id)}>
-                      <span
-                        className="rost__swatch"
-                        style={{ background: look.css }}
-                      />
+                      <LookPreview look={look} className="rost__swatch" />
                       <span className="rost__name">{p.name}</span>
                       <span className="rost__tick">{on ? "✓" : ""}</span>
                     </button>
@@ -152,17 +155,42 @@ export function NewGameScreen({ onClose }: Props) {
                   onChange={(e) => setDraftName(e.target.value)}
                   aria-label="player name"
                 />
-                <div className="lookgrid">
-                  {LOOKS.map((l) => (
+                <LookPreview
+                  look={resolveLook(lookId(draftHue, draftStyle), HUES[0].base)}
+                  className="lookbig"
+                >
+                  <span className="lookbig__num">40</span>
+                </LookPreview>
+
+                <h4 className="picker__label">Colour</h4>
+                <div className="huerow">
+                  {HUES.map((h) => (
                     <button
-                      key={l.id}
-                      className={`lookchip${draftLook === l.id ? " is-on" : ""}`}
-                      style={{ background: l.css, color: textOn(l.base) }}
-                      onClick={() => setDraftLook(l.id)}
-                      aria-label={l.name}
-                      title={l.name}
+                      key={h.id}
+                      className={`huedot${draftHue === h.id ? " is-on" : ""}`}
+                      style={{ background: h.base }}
+                      onClick={() => setDraftHue(h.id)}
+                      aria-label={h.name}
+                      aria-pressed={draftHue === h.id}
+                    />
+                  ))}
+                </div>
+
+                <h4 className="picker__label">Style</h4>
+                <div className="stylerow">
+                  {LOOK_STYLES.map((st) => (
+                    <button
+                      key={st.id}
+                      className={`stylechip${draftStyle === st.id ? " is-on" : ""}`}
+                      onClick={() => setDraftStyle(st.id)}
+                      aria-label={st.name}
+                      aria-pressed={draftStyle === st.id}
+                      title={st.name}
                     >
-                      {draftLook === l.id ? "✓" : ""}
+                      <LookPreview
+                        look={resolveLook(lookId(draftHue, st.id), HUES[0].base)}
+                        className="stylechip__art"
+                      />
                     </button>
                   ))}
                 </div>

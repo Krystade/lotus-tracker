@@ -320,6 +320,69 @@ check(
   `life ${preReload} -> ${postReload}, ${tilesAfter} tiles`,
 );
 
+// --- animated looks --------------------------------------------------
+phase = "looks"; console.log("looks");
+await page.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem("lotus-tracker"));
+  raw.state.game.players.forEach((pl, i) => {
+    pl.look = ["blue-lava", "gold-drift", "magenta-nebula", "red-ribbons",
+               "green-tide", "purple-pulse"][i % 6];
+  });
+  localStorage.setItem("lotus-tracker", JSON.stringify(raw));
+});
+await page.reload();
+await page.waitForSelector(".tile__life", { timeout: 15000 });
+await page.waitForTimeout(700);
+
+const running = await page.evaluate(() => {
+  const a = document.getAnimations();
+  return { n: a.length, states: [...new Set(a.map((x) => x.playState))] };
+});
+check(
+  "animated looks render and run",
+  running.n > 0 && running.states.every((s) => s === "running"),
+  `${running.n} animations, ${running.states.join(",")}`,
+);
+
+// The life total must be exactly as legible on an animated tile as a flat one.
+const inkOk = await page.evaluate(() => {
+  const t = document.querySelector(".tile");
+  const c = getComputedStyle(t).color;
+  return c === "rgb(255, 255, 255)" || c === "rgb(13, 13, 13)";
+});
+check("ink stays one of the two legible choices on an animated look", inkOk);
+
+// The battery toggle must actually halt motion. Each style declares `animation`
+// as a shorthand, which resets play-state to running and outranks the pause
+// rule on specificity -- this once silently did nothing at all.
+await openMenu();
+await page.getByText(/Settings/).first().click();
+await page.waitForTimeout(350);
+await page
+  .locator(".toggle", { hasText: "Animated backgrounds" })
+  .locator("input")
+  .uncheck({ force: true });
+await page.waitForTimeout(250);
+await esc();
+const paused = await page.evaluate(() => {
+  const a = document.getAnimations();
+  return { n: a.length, states: [...new Set(a.map((x) => x.playState))] };
+});
+check(
+  "battery saver genuinely pauses look animation",
+  paused.n > 0 && paused.states.every((s) => s === "paused"),
+  `${paused.n} animations, ${paused.states.join(",")}`,
+);
+
+await openMenu();
+await page.getByText(/Settings/).first().click();
+await page.waitForTimeout(300);
+await page
+  .locator(".toggle", { hasText: "Animated backgrounds" })
+  .locator("input")
+  .check({ force: true });
+await esc();
+
 // --- responsive ------------------------------------------------------
 phase = "responsive"; console.log("responsive");
 for (const [name, w, h] of [
