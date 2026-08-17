@@ -12,6 +12,7 @@ import { formatClock } from "../util/format";
 import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
+import { useLifeFeedback } from "../hooks/useLifeFeedback";
 import { CounterChips, type CounterRef } from "./CounterChips";
 import { CounterQuickAdjust } from "./CounterQuickAdjust";
 import { Digits } from "./Digits";
@@ -149,12 +150,18 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
   const minus = useHoldRepeat(bumpLife, -1, -10);
   const plus = useHoldRepeat(bumpLife, 1, 10);
 
+  // Derived before the early return below so the hook call order stays stable
+  // (a tile can briefly render without its player while a pod is resized).
+  const poisonDead = isPoisonLethal(player?.counters.poison ?? 0);
+  const cmdrDead = isCommanderDamageLethal(player?.commanderDamage);
+  const lethal = (player?.life ?? 1) <= 0 || poisonDead || cmdrDead;
+  const effectsOn = useStore((s) => s.settings.effectsOn);
+  const vibrateOn = useStore((s) => s.settings.vibrateOn);
+  const fx = useLifeFeedback(player?.life ?? 0, lethal, effectsOn, vibrateOn);
+
   if (!player) return null;
 
   const rotated = placement.rotation === 90 || placement.rotation === 270;
-  const poisonDead = isPoisonLethal(player.counters.poison);
-  const cmdrDead = isCommanderDamageLethal(player.commanderDamage);
-  const lethal = player.life <= 0 || poisonDead || cmdrDead;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
   const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
@@ -211,6 +218,8 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
         lethal ? " tile--lethal" : ""
       }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
+      data-fx={fx?.kind}
+      data-fx-level={fx?.intensity}
     >
       <div
         className="tile__content"

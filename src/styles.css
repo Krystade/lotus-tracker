@@ -1289,3 +1289,137 @@ input[type="text"] {
   font-weight: 800;
   font-size: 0.9rem;
 }
+
+/* ---------- damage / heal / death feedback ---------- */
+/* Every action on a tile gets a reaction: a coloured wash over the seat and a
+   kick on the life total, scaled by how big the swing was. Driven by data-fx
+   on the tile, set for a few hundred ms by useLifeFeedback. */
+.tile[data-fx] {
+  --fx-dur: 260ms;
+  --fx-kick: 0.94;
+  --fx-wash: 0.4;
+}
+.tile[data-fx-level="2"] {
+  --fx-dur: 400ms;
+  --fx-kick: 0.88;
+  --fx-wash: 0.55;
+}
+.tile[data-fx-level="3"] {
+  --fx-dur: 650ms;
+  --fx-kick: 0.8;
+  --fx-wash: 0.72;
+}
+.tile[data-fx="heal"] {
+  --fx-kick: 1.07;
+}
+.tile[data-fx="heal"][data-fx-level="2"] {
+  --fx-kick: 1.12;
+}
+.tile[data-fx="heal"][data-fx-level="3"] {
+  --fx-kick: 1.2;
+}
+
+/* The wash tints the seat itself and nothing else: it sits above the tile's
+   own background but beneath every child, so the life total, chips, pill and
+   detail button all stay crisp while it plays. */
+.tile[data-fx]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+@keyframes fxWash {
+  0% {
+    opacity: var(--fx-wash);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.tile[data-fx="damage"]::after {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 40, 60, 0.35),
+    rgba(190, 0, 25, 0.95)
+  );
+  animation: fxWash var(--fx-dur) ease-out;
+}
+
+.tile[data-fx="heal"]::after {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(120, 255, 170, 0.3),
+    rgba(20, 170, 95, 0.85)
+  );
+  animation: fxWash var(--fx-dur) ease-out;
+}
+
+.tile[data-fx="death"]::after {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(0, 0, 0, 0.2),
+    rgba(0, 0, 0, 0.95)
+  );
+  animation: fxWash var(--fx-dur) ease-in;
+}
+
+/* The number takes the hit: a quick squash on damage, a lift on healing. */
+@keyframes fxKick {
+  0% {
+    transform: scale(1);
+  }
+  28% {
+    transform: scale(var(--fx-kick));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tile[data-fx="damage"] .tile__life,
+.tile[data-fx="heal"] .tile__life {
+  animation: fxKick var(--fx-dur) cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/* Death is the loud one: the seat lurches, drains of colour, then settles. */
+@keyframes fxDeathShake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(-3px, 2px);
+  }
+  35% {
+    transform: translate(3px, -2px);
+  }
+  55% {
+    transform: translate(-2px, -1px);
+  }
+  75% {
+    transform: translate(2px, 1px);
+  }
+}
+
+.tile[data-fx="death"] {
+  animation: fxDeathShake var(--fx-dur) ease-in-out;
+}
+
+.tile[data-fx="death"] .tile__life {
+  animation: fxKick var(--fx-dur) ease-in;
+}
+
+/* Reduced motion: keep the information (a coloured wash still says "damage"
+   or "heal"), drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .tile[data-fx] {
+    animation: none;
+  }
+  .tile[data-fx] .tile__life {
+    animation: none;
+  }
+}

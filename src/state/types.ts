@@ -74,6 +74,8 @@ export interface Settings {
   vibrateOn: boolean;
   keepAwake: boolean;
   turnTimerEnabled: boolean;
+  /** Flashes and kicks on damage, healing and death. */
+  effectsOn: boolean;
 }
 
 export interface TurnState {

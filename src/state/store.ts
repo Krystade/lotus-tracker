@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: Settings = {
   vibrateOn: true,
   keepAwake: true,
   turnTimerEnabled: true,
+  effectsOn: true,
 };
 
 function emptyCounters(): CounterSet {

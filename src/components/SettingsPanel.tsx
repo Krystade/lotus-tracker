@@ -119,6 +119,14 @@ export function SettingsPanel({ onClose }: Props) {
               />
             </label>
             <label className="toggle">
+              <span>Damage &amp; heal effects</span>
+              <input
+                type="checkbox"
+                checked={settings.effectsOn}
+                onChange={(e) => update({ effectsOn: e.target.checked })}
+              />
+            </label>
+            <label className="toggle">
               <span>Keep screen awake</span>
               <input
                 type="checkbox"
