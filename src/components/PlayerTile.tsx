@@ -12,6 +12,7 @@ import { formatClock } from "../util/format";
 import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
+import { resolveLook } from "../layout/looks";
 import { useLifeFeedback } from "../hooks/useLifeFeedback";
 import { CounterChips, type CounterRef } from "./CounterChips";
 import { CounterQuickAdjust } from "./CounterQuickAdjust";
@@ -172,11 +173,14 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
     height: rotated ? "100cqw" : "100%",
   };
 
+  // Contrast comes from the look's declared base colour, not from the rendered
+  // pixels, so a gradient or striped tile is as legible as a flat one.
+  const look = resolveLook(player.look, player.color);
   const tileStyle: CSSProperties = {
     gridRow: `${placement.row} / span ${placement.rowSpan}`,
     gridColumn: `${placement.col} / span ${placement.colSpan}`,
-    background: player.color,
-    color: textOn(player.color),
+    background: look.css,
+    color: textOn(look.base),
   };
 
   // Turn pill: a plain tap passes the turn; dragging repositions it (remembered

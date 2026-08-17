@@ -43,6 +43,15 @@ export interface Player {
   eliminated: boolean;
   /** Custom turn-timer position for this seat; remembered across turns. */
   timerPos?: TilePos;
+  /** Chosen tile look; falls back to the flat seat colour when absent. */
+  look?: string;
+}
+
+/** A saved player, reusable across games. Stored on this device only. */
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  look: string;
 }
 
 export interface Placement {
@@ -100,3 +109,14 @@ export interface GameState {
 export const POISON_LETHAL = 10;
 export const COMMANDER_DAMAGE_LETHAL = 21;
 export const COMMANDER_TAX_STEP = 2;
+
+/** A named snapshot of how a game is set up, reloadable later. */
+export interface GameSetup {
+  id: string;
+  name: string;
+  playerCount: number;
+  startingLife: number;
+  layout: LayoutConfig;
+  turnTimerEnabled: boolean;
+  defaultTurnBudgetSec: number;
+}

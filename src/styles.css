@@ -1423,3 +1423,181 @@ input[type="text"] {
     animation: none;
   }
 }
+
+/* ---------- saved players & setups ---------- */
+.setups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.setup__load {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  border-radius: 12px;
+  background: var(--row);
+  color: #fff;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 800;
+}
+
+.setup__load em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.setup__del {
+  flex: 0 0 auto;
+  width: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--row);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.roster {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rost {
+  display: flex;
+  gap: 6px;
+}
+
+.rost__pick {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--row);
+  color: #fff;
+  padding: 8px 12px;
+  font-weight: 800;
+  min-height: 46px;
+}
+
+.rost--on .rost__pick {
+  border-color: var(--pink);
+}
+
+.rost__swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.rost__name {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.rost__tick {
+  color: var(--pink);
+  font-size: 1.1rem;
+}
+
+.rost__edit {
+  flex: 0 0 auto;
+  width: 46px;
+  border: none;
+  border-radius: 12px;
+  background: var(--row);
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.rost__add {
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px;
+  font-weight: 800;
+  min-height: 44px;
+}
+
+.editrow {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Every built-in look, as its own swatch. */
+.lookgrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+
+.lookchip {
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.lookchip.is-on {
+  border-color: #fff;
+}
+
+.editrow__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.linkbtn--danger {
+  color: var(--pink);
+}
+
+/* Save is the primary action here; Cancel should recede and only Delete
+   should read as dangerous. .linkbtn is pink-tinted by default, which made
+   all three look equally urgent. */
+.editrow__actions .linkbtn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--muted);
+  margin-top: 0;
+}
+
+.editrow__actions .linkbtn--danger {
+  background: rgba(240, 53, 107, 0.12);
+  border-color: rgba(240, 53, 107, 0.42);
+  color: var(--pink);
+}
+
+.editrow__actions .panel__add {
+  background: var(--pink);
+  border: none;
+  color: #fff;
+  border-radius: 9px;
+  padding: 9px 18px;
+  font-weight: 800;
+}

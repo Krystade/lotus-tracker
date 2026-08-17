@@ -5,8 +5,10 @@ import {
   type CounterKey,
   type CounterSet,
   type GameState,
+  type GameSetup,
   type LayoutConfig,
   type Player,
+  type PlayerProfile,
   type Settings,
 } from "./types";
 import {
@@ -141,11 +143,24 @@ export interface StoreState {
   customLayouts: LayoutConfig[];
 
   // lifecycle
+  profiles: PlayerProfile[];
+  setups: GameSetup[];
+
   newGame: (opts: {
     playerCount: number;
     startingLife: number;
     layout?: LayoutConfig;
+    /** Seat these saved players; their count wins over playerCount. */
+    profileIds?: string[];
   }) => void;
+
+  // saved players & setups
+  addProfile: (name: string, look: string) => void;
+  updateProfile: (id: string, patch: Partial<Omit<PlayerProfile, "id">>) => void;
+  deleteProfile: (id: string) => void;
+  saveSetup: (name: string) => void;
+  applySetup: (id: string) => void;
+  deleteSetup: (id: string) => void;
   resetLife: () => void;
 
   // life & counters
@@ -201,20 +216,104 @@ export const useStore = create<StoreState>()(
       game: newGameState(4, 40, DEFAULT_SETTINGS),
       settings: DEFAULT_SETTINGS,
       customLayouts: [],
+      profiles: [],
+      setups: [],
 
-      newGame: ({ playerCount, startingLife, layout }) =>
+      newGame: ({ playerCount, startingLife, layout, profileIds }) =>
         set((s) => {
+          // Seating saved players decides the pod size; ids that no longer
+          // exist are simply skipped.
+          const seated = (profileIds ?? [])
+            .map((id) => s.profiles.find((p) => p.id === id))
+            .filter((p): p is PlayerProfile => !!p);
+          const count = seated.length > 0 ? seated.length : playerCount;
           // Keep the current (possibly custom) arrangement if the pod size is
           // unchanged, instead of always snapping back to the default preset.
           const keep =
             layout ??
-            (s.game.layout.playerCount === playerCount
-              ? s.game.layout
-              : undefined);
+            (s.game.layout.playerCount === count ? s.game.layout : undefined);
+          const game = newGameState(count, startingLife, s.settings, keep);
+          if (seated.length > 0) {
+            game.players = game.players.map((p, i) =>
+              seated[i] ? { ...p, name: seated[i].name, look: seated[i].look } : p,
+            );
+          }
+          return { game };
+        }),
+
+      addProfile: (name, look) =>
+        set((s) => {
+          const trimmed = name.trim().slice(0, 16);
+          if (!trimmed) return {};
           return {
-            game: newGameState(playerCount, startingLife, s.settings, keep),
+            profiles: [
+              ...s.profiles,
+              { id: `pr-${uid()}`, name: trimmed, look },
+            ],
           };
         }),
+
+      updateProfile: (id, patch) =>
+        set((s) => ({
+          profiles: s.profiles.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  ...patch,
+                  name: (patch.name ?? p.name).trim().slice(0, 16) || p.name,
+                }
+              : p,
+          ),
+        })),
+
+      deleteProfile: (id) =>
+        set((s) => ({ profiles: s.profiles.filter((p) => p.id !== id) })),
+
+      saveSetup: (name) =>
+        set((s) => {
+          const trimmed = name.trim().slice(0, 24);
+          if (!trimmed) return {};
+          return {
+            setups: [
+              ...s.setups,
+              {
+                id: `setup-${uid()}`,
+                name: trimmed,
+                playerCount: s.game.players.length,
+                startingLife: s.game.startingLife,
+                layout: {
+                  ...s.game.layout,
+                  placements: s.game.layout.placements.map((p) => ({ ...p })),
+                },
+                turnTimerEnabled: s.settings.turnTimerEnabled,
+                defaultTurnBudgetSec: s.settings.defaultTurnBudgetSec,
+              },
+            ],
+          };
+        }),
+
+      applySetup: (id) =>
+        set((s) => {
+          const setup = s.setups.find((x) => x.id === id);
+          if (!setup) return {};
+          const settings = {
+            ...s.settings,
+            turnTimerEnabled: setup.turnTimerEnabled,
+            defaultTurnBudgetSec: setup.defaultTurnBudgetSec,
+          };
+          return {
+            settings,
+            game: newGameState(
+              setup.playerCount,
+              setup.startingLife,
+              settings,
+              setup.layout,
+            ),
+          };
+        }),
+
+      deleteSetup: (id) =>
+        set((s) => ({ setups: s.setups.filter((x) => x.id !== id) })),
 
       resetLife: () =>
         set((s) => {
@@ -600,6 +699,8 @@ export const useStore = create<StoreState>()(
           ...p,
           settings: { ...current.settings, ...(p.settings ?? {}) },
           customLayouts: p.customLayouts ?? current.customLayouts,
+          profiles: Array.isArray(p.profiles) ? p.profiles : current.profiles,
+          setups: Array.isArray(p.setups) ? p.setups : current.setups,
           game,
         };
       },

@@ -169,3 +169,120 @@ describe("store correctness", () => {
     expect(s().game.players[0].commanderDamage.p3).toBeUndefined();
   });
 });
+
+describe("player profiles", () => {
+  beforeEach(() => {
+    s().profiles.forEach((p) => s().deleteProfile(p.id));
+  });
+
+  it("saves a profile with a name and a look", () => {
+    s().addProfile("Jack", "blue-fade");
+    expect(s().profiles).toHaveLength(1);
+    expect(s().profiles[0]).toMatchObject({ name: "Jack", look: "blue-fade" });
+  });
+
+  it("renames and re-skins a profile", () => {
+    s().addProfile("Jack", "blue");
+    const id = s().profiles[0].id;
+    s().updateProfile(id, { name: "Jackie", look: "red-stripe" });
+    expect(s().profiles[0]).toMatchObject({ name: "Jackie", look: "red-stripe" });
+  });
+
+  it("deletes a profile", () => {
+    s().addProfile("Jack", "blue");
+    s().deleteProfile(s().profiles[0].id);
+    expect(s().profiles).toHaveLength(0);
+  });
+
+  it("ignores a blank profile name", () => {
+    s().addProfile("   ", "blue");
+    expect(s().profiles).toHaveLength(0);
+  });
+
+  it("seats a new game from the chosen profiles, in order", () => {
+    s().addProfile("Jack", "blue-fade");
+    s().addProfile("Sam", "red-stripe");
+    const ids = s().profiles.map((p) => p.id);
+    s().newGame({ playerCount: 2, startingLife: 40, profileIds: ids });
+    expect(s().game.players.map((p) => p.name)).toEqual(["Jack", "Sam"]);
+    expect(s().game.players.map((p) => p.look)).toEqual([
+      "blue-fade",
+      "red-stripe",
+    ]);
+  });
+
+  it("sizes the pod to the number of profiles chosen", () => {
+    ["A", "B", "C"].forEach((n) => s().addProfile(n, "blue"));
+    s().newGame({
+      playerCount: 6,
+      startingLife: 40,
+      profileIds: s().profiles.map((p) => p.id),
+    });
+    expect(s().game.players).toHaveLength(3);
+  });
+
+  it("falls back to default seats when no profiles are chosen", () => {
+    s().newGame({ playerCount: 4, startingLife: 40 });
+    expect(s().game.players.map((p) => p.name)).toEqual(["P1", "P2", "P3", "P4"]);
+    expect(s().game.players[0].look).toBeUndefined();
+  });
+
+  it("skips profile ids that no longer exist", () => {
+    s().addProfile("Jack", "blue");
+    const id = s().profiles[0].id;
+    s().newGame({ playerCount: 2, startingLife: 40, profileIds: [id, "gone"] });
+    expect(s().game.players.map((p) => p.name)).toEqual(["Jack"]);
+  });
+});
+
+describe("game setups", () => {
+  beforeEach(() => {
+    s().setups.forEach((x) => s().deleteSetup(x.id));
+  });
+
+  it("saves the current configuration under a name", () => {
+    s().newGame({ playerCount: 5, startingLife: 30 });
+    s().updateSettings({ defaultTurnBudgetSec: 120, turnTimerEnabled: false });
+    s().saveSetup("Two-player night");
+    expect(s().setups[0]).toMatchObject({
+      name: "Two-player night",
+      playerCount: 5,
+      startingLife: 30,
+      defaultTurnBudgetSec: 120,
+      turnTimerEnabled: false,
+    });
+  });
+
+  it("restores pod size, life and timer when applied", () => {
+    s().newGame({ playerCount: 5, startingLife: 30 });
+    s().updateSettings({ defaultTurnBudgetSec: 120, turnTimerEnabled: false });
+    s().saveSetup("night");
+    s().newGame({ playerCount: 4, startingLife: 40 });
+    s().updateSettings({ defaultTurnBudgetSec: 300, turnTimerEnabled: true });
+
+    s().applySetup(s().setups[0].id);
+    expect(s().game.players).toHaveLength(5);
+    expect(s().game.startingLife).toBe(30);
+    expect(s().settings.defaultTurnBudgetSec).toBe(120);
+    expect(s().settings.turnTimerEnabled).toBe(false);
+  });
+
+  it("restores the layout it was saved with", () => {
+    s().applyLayout(twoPlayerLayout);
+    s().saveSetup("duel");
+    s().newGame({ playerCount: 4, startingLife: 40 });
+    s().applySetup(s().setups[0].id);
+    expect(s().game.layout.playerCount).toBe(2);
+  });
+
+  it("ignores a blank setup name", () => {
+    s().saveSetup("  ");
+    expect(s().setups).toHaveLength(0);
+  });
+
+  it("does nothing for a setup that no longer exists", () => {
+    const before = s().game.players.length;
+    s().applySetup("gone");
+    expect(s().game.players).toHaveLength(before);
+  });
+});
