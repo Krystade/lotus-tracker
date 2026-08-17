@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { textOn } from "../layout/colors";
 import type { ResolvedLook } from "../layout/looks";
 
 /**
@@ -18,7 +19,9 @@ export function LookPreview({
     <span
       className={`look ${className}`}
       data-style={look.styleId}
-      style={look.vars as CSSProperties}
+      // Ink is resolved the same way the tile resolves it, so a preview cannot
+      // show white-on-gold while the real tile renders black.
+      style={{ color: textOn(look.base), ...look.vars } as CSSProperties}
     >
       {look.layers > 0 && (
         <span className="tile__look" aria-hidden>
