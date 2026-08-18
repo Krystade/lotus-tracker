@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
-import { HUES, LOOK_STYLES, lookId, resolveLook } from "../layout/looks";
+import { LookPicker } from "./LookPicker";
 import { LookPreview } from "./LookPreview";
+import { resolveLook } from "../layout/looks";
 import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
 import {
@@ -52,13 +53,9 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const [lifeInput, setLifeInput] = useState("");
   const [nameDraft, setNameDraft] = useState("");
   const [newCounter, setNewCounter] = useState("");
+  const [lookOpen, setLookOpen] = useState(false);
 
   const player = players.find((p) => p.id === playerId);
-  // A seat that has never chosen a look has no hue of its own, so the picker
-  // falls back to the first hue rather than showing nothing selected.
-  const current = resolveLook(player?.look, player?.color ?? HUES[0].base);
-  const hueForPicker = current.hueId === "custom" ? HUES[0].id : current.hueId;
-
   // Opponents listed the way turns run, so the grid reads round the table.
   const others = sortBySeatOrder(
     players.filter((p) => p.id !== playerId),
@@ -147,40 +144,35 @@ export function PlayerDetail({ playerId, onClose }: Props) {
           </section>
 
           <section className="panel__section">
-            <h3>Appearance</h3>
-            {/* Applied straight away, like every other control in this panel.
-                The tile behind the overlay is the preview. Changing a seat
-                here does not rewrite the saved player it came from -- that is
-                a template, not a live link. */}
-            <div className="huerow">
-              {HUES.map((h) => (
-                <button
-                  key={h.id}
-                  className={`huedot${current.hueId === h.id ? " is-on" : ""}`}
-                  style={{ background: h.base }}
-                  onClick={() => setPlayerLook(playerId, lookId(h.id, current.styleId))}
-                  aria-label={h.name}
-                  aria-pressed={current.hueId === h.id}
-                />
-              ))}
-            </div>
-            <div className="stylerow">
-              {LOOK_STYLES.map((st) => (
-                <button
-                  key={st.id}
-                  className={`stylechip${current.styleId === st.id ? " is-on" : ""}`}
-                  onClick={() => setPlayerLook(playerId, lookId(hueForPicker, st.id))}
-                  aria-label={st.name}
-                  aria-pressed={current.styleId === st.id}
-                  title={st.name}
-                >
-                  <LookPreview
-                    look={resolveLook(lookId(hueForPicker, st.id), player.color)}
-                    className="stylechip__art"
-                  />
-                </button>
-              ))}
-            </div>
+            {/* A disclosure, not an always-open section. Opening the panel
+                mid-game is usually about life and counters, but the look
+                control has to be *findable* -- this is the compromise: named
+                and first, showing the current look, one tap from the full
+                picker. */}
+            <button
+              className={`disclose${lookOpen ? " is-open" : ""}`}
+              onClick={() => setLookOpen((v) => !v)}
+              aria-expanded={lookOpen}
+            >
+              <LookPreview
+                look={resolveLook(player.look ?? player.color, player.color)}
+                className="disclose__swatch"
+              />
+              <span className="disclose__label">Appearance</span>
+              <span className="disclose__value">
+                {resolveLook(player.look ?? player.color, player.color).name}
+              </span>
+              <span className="disclose__chev" aria-hidden>
+                {lookOpen ? "▾" : "▸"}
+              </span>
+            </button>
+            {lookOpen && (
+              <LookPicker
+                value={player.look ?? player.color}
+                onChange={(id) => setPlayerLook(playerId, id)}
+                seatColor={player.color}
+              />
+            )}
           </section>
 
           <section className="panel__section">

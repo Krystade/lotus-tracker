@@ -72,6 +72,21 @@ const MIN_CONTRAST = 3.05;
  * as much depth as it can afford rather than every hue being limited by the
  * worst one.
  */
+/**
+ * Pulls `candidate` toward the ink colour until it clears MIN_CONTRAST against
+ * it. Used when a highlight comes from a *different* colour than the base, so
+ * the clamp has to be applied against the base's ink rather than its own.
+ */
+function withinInk(candidate: string, base: string): string {
+  const ink = textOn(base);
+  let c = candidate;
+  for (let i = 0; i < 24; i++) {
+    if (contrastRatio(ink, c) >= MIN_CONTRAST) return c;
+    c = shift(c, ink === "#ffffff" ? -0.08 : 0.08);
+  }
+  return base;
+}
+
 function within(base: string, t: number): string {
   const ink = textOn(base);
   let amount = t;
@@ -86,6 +101,8 @@ function within(base: string, t: number): string {
 export interface ResolvedLook {
   id: string;
   hueId: string;
+  /** The raw colour tokens, e.g. ["blue"] or ["#aabbcc", "green"]. */
+  colourSpec: string[];
   styleId: string;
   name: string;
   /** The flat colour contrast is decided from. */
@@ -120,8 +137,51 @@ function noiseDataUri(colour: string, frequency: number, octaves: number, seed: 
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
-export function lookId(hueId: string, styleId: string): string {
-  return styleId === "solid" ? hueId : `${hueId}-${styleId}`;
+/**
+ * A look id is `<colours>` or `<colours>-<style>`, where colours is one or two
+ * tokens joined by `~`, each either a named hue or a #rrggbb literal.
+ *
+ *   blue                  blue, solid
+ *   blue-lava             blue, lava
+ *   #aabbcc-lava          a custom colour
+ *   blue~green-lava       two colours
+ *
+ * Parsing splits at the LAST dash: a style id never contains one, but a colour
+ * spec can. That is also what keeps every legacy id valid unchanged.
+ */
+export function lookId(colourSpec: string, styleId: string): string {
+  return styleId === "solid" ? colourSpec : `${colourSpec}-${styleId}`;
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** Resolves one colour token to a hex value, or null if it is meaningless. */
+function tokenToHex(token: string): string | null {
+  if (HEX.test(token)) return token;
+  return HUES.find((h) => h.id === token)?.base ?? null;
+}
+
+export function parseLookId(
+  id: string,
+): { colourSpec: string[]; styleId: string } | null {
+  const dash = id.lastIndexOf("-");
+  // A trailing dash, or a dash that is part of nothing, is malformed.
+  const hasStyle = dash > 0 && dash < id.length - 1;
+  const spec = hasStyle ? id.slice(0, dash) : id;
+  const styleId = hasStyle ? id.slice(dash + 1) : "solid";
+  if (!LOOK_STYLES.some((s) => s.id === styleId)) return null;
+
+  const raw = spec.split("~").filter((t) => t !== "");
+  if (raw.length === 0 || raw.length > 2) return null;
+  if (raw.some((t) => tokenToHex(t) === null)) return null;
+  // A hex that happens to be one of the presets is normalised back to the hue
+  // id, so the preset swatch shows as selected instead of the colour wheel.
+  // A seat's own colour is always a preset, which is exactly this case.
+  const colourSpec = raw.map((t) => {
+    const named = HUES.find((h) => h.base.toLowerCase() === t.toLowerCase());
+    return named ? named.id : t.toLowerCase();
+  });
+  return { colourSpec, styleId };
 }
 
 export function allLookIds(): string[] {
@@ -147,31 +207,45 @@ function paletteFor(base: string): { lo: string; hi: string } {
   };
 }
 
-function build(hue: Hue, style: LookStyle): ResolvedLook {
-  const { lo, hi } = paletteFor(hue.base);
+function build(colourSpec: string[], style: LookStyle): ResolvedLook {
+  const colours = colourSpec.map((t) => tokenToHex(t) as string);
+  const base = colours[0];
+  // The second colour, when given, supplies the highlight; the shadow always
+  // comes from the first so the tile still reads as that seat's colour. Both
+  // are clamped against the ink chosen for the base, which is why a custom
+  // colour picked from a wheel cannot break legibility.
+  const lo = paletteFor(base).lo;
+  const hi = colours[1]
+    ? withinInk(paletteFor(colours[1]).hi, base)
+    : paletteFor(base).hi;
   const vars: Record<string, string> = {
-    "--look-base": hue.base,
+    "--look-base": base,
     "--look-lo": lo,
     "--look-hi": hi,
   };
   if (style.id === "smoke") vars["--look-noise"] = noiseDataUri(hi, 0.022, 4, 11, 0.78);
   if (style.id === "marble") vars["--look-noise"] = noiseDataUri(hi, 0.014, 5, 3, 0.88);
+  const named = HUES.find((h) => h.base === base);
   return {
-    id: lookId(hue.id, style.id),
-    hueId: hue.id,
+    id: lookId(colourSpec.join("~"), style.id),
+    hueId: HUES.find((h) => h.id === colourSpec[0])?.id ?? "custom",
+    colourSpec,
     styleId: style.id,
-    name: style.id === "solid" ? hue.name : `${hue.name} ${style.name.toLowerCase()}`,
-    base: hue.base,
+    name:
+      style.id === "solid"
+        ? (named?.name ?? "Custom")
+        : `${named?.name ?? "Custom"} ${style.name.toLowerCase()}`,
+    base,
     vars,
     animated: style.animated,
     layers: style.layers,
-    paintedColours: style.id === "solid" ? [hue.base] : [hue.base, lo, hi],
+    paintedColours: style.id === "solid" ? [base] : [base, lo, hi],
   };
 }
 
 /** The look for a seat when nothing has been chosen. */
 export function defaultLookFor(seat: number): ResolvedLook {
-  return build(HUES[seat % HUES.length], LOOK_STYLES[0]);
+  return build([HUES[seat % HUES.length].id], LOOK_STYLES[0]);
 }
 
 /**
@@ -187,6 +261,7 @@ export function resolveLook(
   const fallback: ResolvedLook = {
     id: "custom",
     hueId: "custom",
+    colourSpec: [color],
     styleId: "solid",
     name: "Custom",
     base: color,
@@ -200,13 +275,9 @@ export function resolveLook(
     paintedColours: [color],
   };
   if (!lookId) return fallback;
-
-  const dash = lookId.indexOf("-");
-  const hueId = dash === -1 ? lookId : lookId.slice(0, dash);
-  const styleId = dash === -1 ? "solid" : lookId.slice(dash + 1);
-
-  const hue = HUES.find((h) => h.id === hueId);
-  const style = LOOK_STYLES.find((s) => s.id === styleId);
-  if (!hue || !style) return fallback;
-  return build(hue, style);
+  const parsed = parseLookId(lookId);
+  if (!parsed) return fallback;
+  const style = LOOK_STYLES.find((s) => s.id === parsed.styleId);
+  if (!style) return fallback;
+  return build(parsed.colourSpec, style);
 }

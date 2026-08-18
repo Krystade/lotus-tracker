@@ -87,6 +87,8 @@ export interface Settings {
   effectsOn: boolean;
   /** Motion on animated tile looks. Off freezes them without unmounting. */
   animateLooks: boolean;
+  /** Multiplier on look animation speed; 1 is the authored pace. */
+  lookSpeed: number;
 }
 
 export interface TurnState {

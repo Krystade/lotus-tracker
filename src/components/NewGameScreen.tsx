@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
-import { HUES, LOOK_STYLES, lookId, resolveLook } from "../layout/looks";
+import { HUES, resolveLook } from "../layout/looks";
 import { LookPreview } from "./LookPreview";
+import { LookPicker } from "./LookPicker";
 
 const LIFE_PRESETS = [20, 30, 40];
 
@@ -28,8 +29,7 @@ export function NewGameScreen({ onClose }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [draftName, setDraftName] = useState("");
-  const [draftHue, setDraftHue] = useState(HUES[0].id);
-  const [draftStyle, setDraftStyle] = useState(LOOK_STYLES[0].id);
+  const [draftLook, setDraftLook] = useState(HUES[0].id);
   const [setupName, setSetupName] = useState("");
 
   const isCustom = customLife.trim() !== "";
@@ -46,21 +46,17 @@ export function NewGameScreen({ onClose }: Props) {
     if (id === "new") {
       setDraftName("");
       // Offer the next unused seat colour rather than always the first.
-      setDraftHue(HUES[picked.length % HUES.length].id);
-      setDraftStyle(LOOK_STYLES[0].id);
+      setDraftLook(HUES[picked.length % HUES.length].id);
     } else {
       const p = profiles.find((x) => x.id === id);
       setDraftName(p?.name ?? "");
-      const current = resolveLook(p?.look, HUES[0].base);
-      setDraftHue(current.hueId === "custom" ? HUES[0].id : current.hueId);
-      setDraftStyle(current.styleId);
+      setDraftLook(p?.look ?? HUES[0].id);
     }
   };
 
   const commitEditor = () => {
-    const look = lookId(draftHue, draftStyle);
-    if (editing === "new") addProfile(draftName, look);
-    else if (editing) updateProfile(editing, { name: draftName, look });
+    if (editing === "new") addProfile(draftName, draftLook);
+    else if (editing) updateProfile(editing, { name: draftName, look: draftLook });
     setEditing(null);
   };
 
@@ -156,44 +152,18 @@ export function NewGameScreen({ onClose }: Props) {
                   aria-label="player name"
                 />
                 <LookPreview
-                  look={resolveLook(lookId(draftHue, draftStyle), HUES[0].base)}
+                  look={resolveLook(draftLook, HUES[0].base)}
                   className="lookbig"
                 >
                   <span className="lookbig__num">40</span>
                 </LookPreview>
 
-                <h4 className="picker__label">Colour</h4>
-                <div className="huerow">
-                  {HUES.map((h) => (
-                    <button
-                      key={h.id}
-                      className={`huedot${draftHue === h.id ? " is-on" : ""}`}
-                      style={{ background: h.base }}
-                      onClick={() => setDraftHue(h.id)}
-                      aria-label={h.name}
-                      aria-pressed={draftHue === h.id}
-                    />
-                  ))}
-                </div>
+                <LookPicker
+                  value={draftLook}
+                  onChange={setDraftLook}
+                  seatColor={HUES[picked.length % HUES.length].base}
+                />
 
-                <h4 className="picker__label">Style</h4>
-                <div className="stylerow">
-                  {LOOK_STYLES.map((st) => (
-                    <button
-                      key={st.id}
-                      className={`stylechip${draftStyle === st.id ? " is-on" : ""}`}
-                      onClick={() => setDraftStyle(st.id)}
-                      aria-label={st.name}
-                      aria-pressed={draftStyle === st.id}
-                      title={st.name}
-                    >
-                      <LookPreview
-                        look={resolveLook(lookId(draftHue, st.id), HUES[0].base)}
-                        className="stylechip__art"
-                      />
-                    </button>
-                  ))}
-                </div>
                 <div className="editrow__actions">
                   <button className="linkbtn" onClick={() => setEditing(null)}>
                     Cancel

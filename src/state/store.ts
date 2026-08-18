@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: Settings = {
   turnTimerEnabled: true,
   effectsOn: true,
   animateLooks: true,
+  lookSpeed: 1,
 };
 
 function emptyCounters(): CounterSet {

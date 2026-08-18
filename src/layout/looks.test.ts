@@ -126,3 +126,101 @@ describe("the fallback palette", () => {
     },
   );
 });
+
+describe("look ids — custom and multi colour", () => {
+  // Ids split at the LAST dash, because a style id never contains one but a
+  // hex colour spec might sit to its left.
+  it("accepts a custom hex colour", () => {
+    const l = resolveLook("#aabbcc-lava", "#000");
+    expect(l.styleId).toBe("lava");
+    expect(l.base.toLowerCase()).toBe("#aabbcc");
+  });
+
+  it("accepts a custom hex colour with no style", () => {
+    const l = resolveLook("#aabbcc", "#000");
+    expect(l.styleId).toBe("solid");
+    expect(l.base.toLowerCase()).toBe("#aabbcc");
+  });
+
+  it("accepts two named hues", () => {
+    const l = resolveLook("blue~green-lava", "#000");
+    expect(l.colourSpec).toEqual(["blue", "green"]);
+    expect(l.styleId).toBe("lava");
+  });
+
+  it("accepts two custom colours", () => {
+    const l = resolveLook("#aabbcc~#ddeeff-nebula", "#000");
+    expect(l.colourSpec).toEqual(["#aabbcc", "#ddeeff"]);
+    expect(l.base.toLowerCase()).toBe("#aabbcc");
+  });
+
+  it("mixes a named hue with a custom colour", () => {
+    const l = resolveLook("blue~#ff8800-ribbons", "#000");
+    expect(l.styleId).toBe("ribbons");
+    expect(l.colourSpec).toEqual(["blue", "#ff8800"]);
+  });
+
+  it("takes its contrast anchor from the first colour", () => {
+    const a = resolveLook("blue~green-lava", "#000");
+    const b = resolveLook("blue-lava", "#000");
+    expect(a.base).toBe(b.base);
+  });
+
+  it("builds round-trippable ids", () => {
+    for (const id of ["blue", "blue-lava", "#aabbcc-lava", "blue~green-lava"]) {
+      const l = resolveLook(id, "#000");
+      expect(lookId(l.colourSpec.join("~"), l.styleId)).toBe(id);
+    }
+  });
+
+  it("rejects a malformed hex and falls back", () => {
+    expect(resolveLook("#zzz-lava", "#123456").base).toBe("#123456");
+  });
+
+  it("keeps legacy ids working alongside the new grammar", () => {
+    expect(resolveLook("blue-fade", "#000").styleId).toBe("fade");
+    expect(resolveLook("gold", "#000").styleId).toBe("solid");
+  });
+});
+
+describe("the contrast guarantee for custom colours", () => {
+  // A colour wheel means any colour at all, so the clamp has to hold for
+  // colours nobody vetted.
+  it.each(["#ffffff", "#000000", "#ff0000", "#00ff88", "#7a7a7a", "#123456"])(
+    "keeps the life total legible on custom %s",
+    (colour) => {
+      const look = resolveLook(`${colour}-lava`, "#000");
+      const ink = textOn(look.base);
+      for (const v of ["--look-lo", "--look-hi"]) {
+        expect(contrastRatio(ink, look.vars[v])).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it("keeps the second colour legible too", () => {
+    const look = resolveLook("#000000~#ffffff-lava", "#000");
+    const ink = textOn(look.base);
+    for (const c of look.paintedColours) {
+      expect(contrastRatio(ink, c)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe("preset normalisation", () => {
+  // A seat's own colour is always one of the presets, so opening the picker
+  // for a seat that has never chosen a look must light up that preset rather
+  // than falling into the custom-colour wheel.
+  it.each(HUES)("normalises $base back to the $id preset", (hue) => {
+    const l = resolveLook(hue.base, "#000");
+    expect(l.colourSpec).toEqual([hue.id]);
+    expect(l.hueId).toBe(hue.id);
+  });
+
+  it("normalises case-insensitively", () => {
+    expect(resolveLook("#3e92cc-lava", "#000").colourSpec).toEqual(["blue"]);
+  });
+
+  it("leaves a genuinely custom colour alone", () => {
+    expect(resolveLook("#ff8800-lava", "#000").colourSpec).toEqual(["#ff8800"]);
+  });
+});

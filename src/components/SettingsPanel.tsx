@@ -134,6 +134,22 @@ export function SettingsPanel({ onClose }: Props) {
                 onChange={(e) => update({ animateLooks: e.target.checked })}
               />
             </label>
+            <p className="panel__sublabel">Background motion speed</p>
+            <input
+              className="slider"
+              type="range"
+              min={0.25}
+              max={2.5}
+              step={0.25}
+              value={settings.lookSpeed}
+              onChange={(e) => update({ lookSpeed: Number(e.target.value) })}
+              aria-label="background motion speed"
+            />
+            <div className="slider__scale">
+              <span>Slower</span>
+              <span>{settings.lookSpeed.toFixed(2)}×</span>
+              <span>Faster</span>
+            </div>
             <label className="toggle">
               <span>Keep screen awake</span>
               <input

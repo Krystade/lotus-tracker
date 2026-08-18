@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "./state/store";
 import { useTicker } from "./hooks/useTicker";
 import { useWakeLock } from "./hooks/useWakeLock";
@@ -46,6 +46,7 @@ export default function App() {
   // hidden — CSS animations keep running when a page is backgrounded, unlike
   // rAF, so this is worth doing explicitly on a screen held awake for hours.
   const animateLooks = useStore((s) => s.settings.animateLooks);
+  const lookSpeed = useStore((s) => s.settings.lookSpeed);
   const [hidden, setHidden] = useState(
     typeof document !== "undefined" && document.visibilityState === "hidden",
   );
@@ -69,7 +70,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className={`app${still ? " app--still" : ""}`}>
+    <div
+      className={`app${still ? " app--still" : ""}`}
+      style={{ "--look-speed": String(lookSpeed) } as CSSProperties}
+    >
       <Board onOpenDetail={setDetailId} />
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}
