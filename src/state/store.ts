@@ -184,6 +184,7 @@ export interface StoreState {
   toggleEliminated: (playerId: string) => void;
   setTimerPos: (playerId: string, pos: { x: number; y: number }) => void;
   setPlayerName: (playerId: string, name: string) => void;
+  setPlayerLook: (playerId: string, look: string) => void;
   setFirstPlayer: (playerId: string) => void;
 
   // turns & timers
@@ -506,6 +507,19 @@ export const useStore = create<StoreState>()(
               const seat = Number(playerId.slice(1)) + 1;
               return { ...p, name: trimmed || `P${seat}` };
             }),
+          },
+        })),
+
+      // Changes this seat for this game only. The profile it came from is a
+      // template, not a live link -- same as renaming a seat mid-game.
+      setPlayerLook: (playerId, look) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            players: updatePlayer(s.game.players, playerId, (p) => ({
+              ...p,
+              look,
+            })),
           },
         })),
 

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
+import { HUES, LOOK_STYLES, lookId, resolveLook } from "../layout/looks";
+import { LookPreview } from "./LookPreview";
 import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
 import {
@@ -44,6 +46,7 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const adjustCustomCounter = useStore((s) => s.adjustCustomCounter);
   const removeCustomCounter = useStore((s) => s.removeCustomCounter);
   const toggleEliminated = useStore((s) => s.toggleEliminated);
+  const setPlayerLook = useStore((s) => s.setPlayerLook);
   const setPlayerName = useStore((s) => s.setPlayerName);
 
   const [lifeInput, setLifeInput] = useState("");
@@ -51,6 +54,11 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const [newCounter, setNewCounter] = useState("");
 
   const player = players.find((p) => p.id === playerId);
+  // A seat that has never chosen a look has no hue of its own, so the picker
+  // falls back to the first hue rather than showing nothing selected.
+  const current = resolveLook(player?.look, player?.color ?? HUES[0].base);
+  const hueForPicker = current.hueId === "custom" ? HUES[0].id : current.hueId;
+
   // Opponents listed the way turns run, so the grid reads round the table.
   const others = sortBySeatOrder(
     players.filter((p) => p.id !== playerId),
@@ -135,6 +143,43 @@ export function PlayerDetail({ playerId, onClose }: Props) {
                   Set life
                 </button>
               </div>
+            </div>
+          </section>
+
+          <section className="panel__section">
+            <h3>Appearance</h3>
+            {/* Applied straight away, like every other control in this panel.
+                The tile behind the overlay is the preview. Changing a seat
+                here does not rewrite the saved player it came from -- that is
+                a template, not a live link. */}
+            <div className="huerow">
+              {HUES.map((h) => (
+                <button
+                  key={h.id}
+                  className={`huedot${current.hueId === h.id ? " is-on" : ""}`}
+                  style={{ background: h.base }}
+                  onClick={() => setPlayerLook(playerId, lookId(h.id, current.styleId))}
+                  aria-label={h.name}
+                  aria-pressed={current.hueId === h.id}
+                />
+              ))}
+            </div>
+            <div className="stylerow">
+              {LOOK_STYLES.map((st) => (
+                <button
+                  key={st.id}
+                  className={`stylechip${current.styleId === st.id ? " is-on" : ""}`}
+                  onClick={() => setPlayerLook(playerId, lookId(hueForPicker, st.id))}
+                  aria-label={st.name}
+                  aria-pressed={current.styleId === st.id}
+                  title={st.name}
+                >
+                  <LookPreview
+                    look={resolveLook(lookId(hueForPicker, st.id), player.color)}
+                    className="stylechip__art"
+                  />
+                </button>
+              ))}
             </div>
           </section>
 

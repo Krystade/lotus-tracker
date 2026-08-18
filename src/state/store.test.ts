@@ -286,3 +286,32 @@ describe("game setups", () => {
     expect(s().game.players).toHaveLength(before);
   });
 });
+
+describe("player look", () => {
+  it("changes the look of a seat in the current game", () => {
+    s().setPlayerLook("p0", "blue-lava");
+    expect(s().game.players[0].look).toBe("blue-lava");
+  });
+
+  it("leaves other seats alone", () => {
+    s().setPlayerLook("p1", "green-tide");
+    expect(s().game.players[0].look).toBeUndefined();
+    expect(s().game.players[1].look).toBe("green-tide");
+  });
+
+  it("ignores an unknown seat", () => {
+    s().setPlayerLook("nope", "blue-lava");
+    expect(s().game.players.every((p) => p.look === undefined)).toBe(true);
+  });
+
+  it("does not touch the saved profile the seat came from", () => {
+    s().addProfile("Jack", "gold");
+    // Earlier suites leave profiles behind, so find ours rather than assume
+    // it is first.
+    const mine = s().profiles[s().profiles.length - 1];
+    s().newGame({ playerCount: 1, startingLife: 40, profileIds: [mine.id] });
+    s().setPlayerLook("p0", "purple-smoke");
+    expect(s().game.players[0].look).toBe("purple-smoke");
+    expect(s().profiles.find((x) => x.id === mine.id)?.look).toBe("gold");
+  });
+});
