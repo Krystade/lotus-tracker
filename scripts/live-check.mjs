@@ -325,7 +325,7 @@ phase = "looks"; console.log("looks");
 await page.evaluate(() => {
   const raw = JSON.parse(localStorage.getItem("lotus-tracker"));
   raw.state.game.players.forEach((pl, i) => {
-    pl.look = ["blue-lava", "gold-drift", "magenta-nebula", "red-ribbons",
+    pl.look = ["blue-lava", "gold-drift", "magenta-nebula", "red-tide",
                "green-tide", "purple-pulse"][i % 6];
   });
   localStorage.setItem("lotus-tracker", JSON.stringify(raw));
@@ -351,6 +351,37 @@ const inkOk = await page.evaluate(() => {
   return c === "rgb(255, 255, 255)" || c === "rgb(13, 13, 13)";
 });
 check("ink stays one of the two legible choices on an animated look", inkOk);
+
+// The damage/heal wash must stay a hue blend, not an alpha tint. An alpha
+// tint is a linear mix toward the wash colour, so on a seat whose hue opposes
+// it the mix passes through grey -- heal on magenta came out grey-brown that
+// way. mix-blend-mode:color takes luminance from the tile, which both fixes
+// the hue and leaves the life total's contrast ratio untouched.
+const washMode = await page.evaluate(() => {
+  const t = document.querySelector(".tile");
+  t.dataset.fx = "damage";
+  const read = (lvl) => {
+    if (lvl) t.dataset.fxLevel = String(lvl);
+    else delete t.dataset.fxLevel;
+    const cs = getComputedStyle(t, "::after");
+    return { blend: cs.mixBlendMode, reach: cs.getPropertyValue("--fx-reach").trim() };
+  };
+  const t1 = read(null);
+  const t3 = read(3);
+  delete t.dataset.fx;
+  delete t.dataset.fxLevel;
+  return { blend: t1.blend, r1: t1.reach, r3: t3.reach };
+});
+check(
+  "damage wash blends hue rather than tinting with alpha",
+  washMode.blend === "color",
+  `mix-blend-mode: ${washMode.blend}`,
+);
+check(
+  "wash tiers scale by coverage, not opacity",
+  washMode.r1 !== "" && washMode.r3 !== "" && washMode.r1 !== washMode.r3,
+  `tier1 reach ${washMode.r1} -> tier3 ${washMode.r3}`,
+);
 
 // The battery toggle must actually halt motion. Each style declares `animation`
 // as a shorthand, which resets play-state to running and outranks the pause

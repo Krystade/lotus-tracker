@@ -2,8 +2,27 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
+
+// Stamped into the bundle so the running app can say which build it is. The
+// question "is my home-screen copy actually the new one?" is otherwise
+// unanswerable from the device.
+const buildId = (() => {
+  try {
+    const sha = execSync("git rev-parse --short HEAD").toString().trim();
+    const dirty = execSync("git status --porcelain").toString().trim() !== "";
+    return `${sha}${dirty ? "+" : ""}`;
+  } catch {
+    return "unknown";
+  }
+})();
+const buildTime = new Date().toISOString().slice(0, 16).replace("T", " ");
 
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(buildId),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
   base: "/lotus-tracker/",
   plugins: [
     react(),

@@ -39,8 +39,13 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
   const swatchFor = (colour: string, styleId: string) =>
     resolveLook(lookId(colour, styleId), seatColor);
 
+  // One element, not a fragment. The detail panel lays its sections out as a
+  // two-column grid when rotated, and a fragment's children each become an
+  // independent grid item -- which scattered the labels away from their rows
+  // and pushed Counters off screen. A single wrapper keeps the picker's
+  // internals its own business.
   return (
-    <>
+    <div className="picker">
       <p className="picker__label">Colour</p>
       <div className="huerow">
         {HUES.map((h) => (
@@ -131,6 +136,6 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
           </button>
         ))}
       </div>
-    </>
+    </div>
   );
 }

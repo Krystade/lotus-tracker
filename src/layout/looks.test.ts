@@ -155,8 +155,8 @@ describe("look ids — custom and multi colour", () => {
   });
 
   it("mixes a named hue with a custom colour", () => {
-    const l = resolveLook("blue~#ff8800-ribbons", "#000");
-    expect(l.styleId).toBe("ribbons");
+    const l = resolveLook("blue~#ff8800-tide", "#000");
+    expect(l.styleId).toBe("tide");
     expect(l.colourSpec).toEqual(["blue", "#ff8800"]);
   });
 

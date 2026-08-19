@@ -78,6 +78,9 @@ input {
 .tile {
   position: relative;
   container-type: size;
+  /* The damage/heal wash blends with what is painted beneath it inside the
+     tile; isolating guarantees it can never reach the board behind. */
+  isolation: isolate;
   border-radius: 22px;
   overflow: hidden;
   color: #fff;
@@ -567,10 +570,13 @@ input {
 .panel--rot .panel__section > .panel__note,
 .panel--rot .panel__addrow,
 .panel--rot .panel__elim,
-.panel--rot .panel__life {
+.panel--rot .panel__life,
+/* The look picker is one item, and the disclosure that opens it is another.
+   Columnising either scatters the labels away from the rows they name. */
+.panel--rot .panel__section > .picker-slot,
+.panel--rot .panel__section > .disclose {
   grid-column: 1 / -1;
 }
-
 
 .panel__head {
   display: flex;
@@ -1294,20 +1300,27 @@ input[type="text"] {
 /* Every action on a tile gets a reaction: a coloured wash over the seat and a
    kick on the life total, scaled by how big the swing was. Driven by data-fx
    on the tile, set for a few hundred ms by useLifeFeedback. */
+/* Tier is scaled by how far the colour REACHES across the tile, not by how
+   transparent it is. A partly transparent tint is a linear mix between the
+   seat colour and the wash, and for a seat whose hue opposes the wash that mix
+   passes through grey -- which is why heal on magenta came out grey-brown and
+   damage on green came out olive. At full strength the hue is unambiguous on
+   every seat, so the tier signal moves to area instead. */
 .tile[data-fx] {
   --fx-dur: 300ms;
   --fx-kick: 0.94;
-  --fx-wash: 0.26;
+  --fx-reach: 55%;
+  --fx-wash: 1;
 }
 .tile[data-fx-level="2"] {
   --fx-dur: 440ms;
   --fx-kick: 0.88;
-  --fx-wash: 0.36;
+  --fx-reach: 80%;
 }
 .tile[data-fx-level="3"] {
   --fx-dur: 680ms;
   --fx-kick: 0.8;
-  --fx-wash: 0.48;
+  --fx-reach: 105%;
 }
 .tile[data-fx="heal"] {
   --fx-kick: 1.14;
@@ -1350,26 +1363,35 @@ input[type="text"] {
   }
 }
 
+/* mix-blend-mode: color takes hue and saturation from the wash and luminance
+   from the tile underneath. Two consequences worth keeping: the tile reads as
+   the right colour whatever seat colour or animated look is beneath it, and
+   because luminance is untouched the life total's contrast ratio is unchanged
+   by construction -- the wash cannot break legibility. */
 .tile[data-fx="damage"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(255, 40, 60, 0.35),
-    rgba(190, 0, 25, 0.95)
+    rgba(255, 0, 64, 1) 0%,
+    rgba(255, 0, 64, 1) calc(var(--fx-reach) * 0.55),
+    rgba(255, 0, 64, 0) var(--fx-reach)
   );
+  mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;
 }
 
 .tile[data-fx="heal"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(120, 255, 170, 0.3),
-    rgba(20, 170, 95, 0.85)
+    rgba(0, 255, 110, 1) 0%,
+    rgba(0, 255, 110, 1) calc(var(--fx-reach) * 0.55),
+    rgba(0, 255, 110, 0) var(--fx-reach)
   );
+  mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;
 }
 
-/* Death is a dimming, not a colour cast, so it carries its own
-   stronger wash without adding to the red/green complaint. */
+/* Death stays a plain alpha dim rather than a colour blend: it is a loss of
+   light, not a change of hue, and black has no hue to blend in. */
 .tile[data-fx="death"] {
   --fx-wash: 0.62;
 }
@@ -1749,39 +1771,6 @@ input[type="text"] {
   50% { transform: translate(-25%, -10%) scale(1.2); }
 }
 
-.look[data-style="ribbons"] .tile__look span {
-  top: -30%;
-  height: 160%;
-  width: 52%;
-}
-.look[data-style="ribbons"] .tile__look span:nth-child(1) {
-  left: -6%;
-  background: linear-gradient(90deg, transparent, var(--look-hi) 45%, transparent);
-  animation: lkRib1 calc(17s / var(--look-speed, 1)) ease-in-out infinite;
-}
-.look[data-style="ribbons"] .tile__look span:nth-child(2) {
-  left: 26%;
-  background: linear-gradient(90deg, transparent, var(--look-lo) 50%, transparent);
-  animation: lkRib2 calc(23s / var(--look-speed, 1)) ease-in-out infinite;
-  opacity: 0.85;
-}
-.look[data-style="ribbons"] .tile__look span:nth-child(3) {
-  left: 58%;
-  background: linear-gradient(90deg, transparent, var(--look-hi) 50%, transparent);
-  animation: lkRib3 calc(29s / var(--look-speed, 1)) ease-in-out infinite;
-  opacity: 0.7;
-}
-@keyframes lkRib1 {
-  0%, 100% { transform: translateX(-18%) skewX(-9deg) scaleY(1); }
-  50% { transform: translateX(22%) skewX(11deg) scaleY(1.15); }
-}
-@keyframes lkRib2 {
-  0%, 100% { transform: translateX(16%) skewX(8deg) scaleY(1.1); }
-  50% { transform: translateX(-20%) skewX(-10deg) scaleY(0.9); }
-}
-@keyframes lkRib3 {
-  0%, 100% { transform: translateX(-12%) skewX(6deg); }
-  50% { transform: translateX(18%) skewX(-8deg); }
 }
 
 .look[data-style="tide"] .tile__look span {
@@ -1944,18 +1933,28 @@ input[type="text"] {
   border-color: #fff;
 }
 
-/* A scrolling strip, not a grid. The detail panel is rotated to face its seat,
-   so its content width varies a great deal; a grid either overflowed at narrow
-   widths or ate the whole panel at tall ones. A strip fits any width and keeps
-   the section short enough that Counters stay reachable. */
+/* The picker owns its own vertical rhythm so it survives being dropped into
+   any parent, including the rotated panel's two-column section grid. */
+.picker-slot {
+  min-width: 0;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Wrapping, not scrolling. This was a horizontal scroll strip, which nests a
+   scroll container inside a panel that is itself rotated 90deg -- so the swipe
+   direction no longer matches the axis, and seven of eleven styles read as
+   simply missing. Fixed-width chips wrap instead: nothing is ever hidden, at
+   any panel width. */
 .stylerow {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 
 .stylerow .stylechip {
@@ -2125,4 +2124,19 @@ input[type="text"] {
 .disclose__chev {
   flex: 0 0 auto;
   color: var(--muted);
+}
+
+/* Build stamp: the only way to answer "is my home-screen copy the new one?"
+   from the device itself. */
+.buildstamp {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
 }

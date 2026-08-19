@@ -3,6 +3,12 @@ import { formatClock } from "../util/format";
 
 const BUDGET_PRESETS = [120, 180, 300, 420, 600];
 
+// Injected by Vite at build time; absent under Vitest, hence the guards.
+const BUILD_ID =
+  typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
+const BUILD_TIME =
+  typeof __BUILD_TIME__ === "string" ? __BUILD_TIME__ : "";
+
 interface Props {
   onClose: () => void;
 }
@@ -158,6 +164,32 @@ export function SettingsPanel({ onClose }: Props) {
                 onChange={(e) => update({ keepAwake: e.target.checked })}
               />
             </label>
+          </section>
+
+          <section className="panel__section">
+            <h3>Version</h3>
+            <p className="panel__note">
+              Updates install on their own the next time you open the app. This
+              is the build you are running now.
+            </p>
+            <div className="buildstamp">
+              <span>{BUILD_ID}</span>
+              <span>{BUILD_TIME}</span>
+            </div>
+            <button
+              className="linkbtn"
+              onClick={() => {
+                // Belt and braces: ask the worker to re-check, then hard-reload
+                // past the HTTP cache.
+                navigator.serviceWorker
+                  ?.getRegistration()
+                  ?.then((r) => r?.update())
+                  .catch(() => undefined)
+                  .finally(() => location.reload());
+              }}
+            >
+              Check for updates now
+            </button>
           </section>
         </div>
       </div>

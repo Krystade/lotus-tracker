@@ -44,7 +44,6 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "drift", name: "Drift", animated: true, layers: 2 },
   { id: "lava", name: "Lava", animated: true, layers: 3 },
   { id: "nebula", name: "Nebula", animated: true, layers: 3 },
-  { id: "ribbons", name: "Ribbons", animated: true, layers: 3 },
   { id: "tide", name: "Tide", animated: true, layers: 2 },
   { id: "pulse", name: "Pulse", animated: true, layers: 2 },
   { id: "smoke", name: "Smoke", animated: true, layers: 1 },

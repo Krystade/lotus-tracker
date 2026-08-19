@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
 import { LookPicker } from "./LookPicker";
@@ -54,6 +54,7 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   const [nameDraft, setNameDraft] = useState("");
   const [newCounter, setNewCounter] = useState("");
   const [lookOpen, setLookOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const player = players.find((p) => p.id === playerId);
   // Opponents listed the way turns run, so the grid reads round the table.
@@ -65,6 +66,15 @@ export function PlayerDetail({ playerId, onClose }: Props) {
   useEffect(() => {
     setNameDraft(player?.name ?? "");
   }, [playerId, player?.name]);
+
+  // The panel body is taller than it can show, and when the panel is rotated to
+  // face its seat that overflow runs sideways on screen -- so a picker that
+  // opens below the fold reads as the menu being shoved off screen. Bring it
+  // into view instead of asking for a swipe along a rotated axis.
+  useEffect(() => {
+    if (!lookOpen) return;
+    pickerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [lookOpen]);
 
   if (!player) return null;
 
@@ -167,11 +177,13 @@ export function PlayerDetail({ playerId, onClose }: Props) {
               </span>
             </button>
             {lookOpen && (
+              <div className="picker-slot" ref={pickerRef}>
               <LookPicker
                 value={player.look ?? player.color}
                 onChange={(id) => setPlayerLook(playerId, id)}
                 seatColor={player.color}
               />
+              </div>
             )}
           </section>
 
