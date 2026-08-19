@@ -1306,21 +1306,27 @@ input[type="text"] {
    passes through grey -- which is why heal on magenta came out grey-brown and
    damage on green came out olive. At full strength the hue is unambiguous on
    every seat, so the tier signal moves to area instead. */
+/* The colour sits on the edges and falls off toward the middle, which is the
+   shape this always had; the tier decides how far in from the rim it creeps.
+   Keeping the centre clear also keeps the wash off the life total. */
 .tile[data-fx] {
   --fx-dur: 300ms;
   --fx-kick: 0.94;
-  --fx-reach: 55%;
+  --fx-in: 55%;
+  --fx-out: 102%;
   --fx-wash: 1;
 }
 .tile[data-fx-level="2"] {
   --fx-dur: 440ms;
   --fx-kick: 0.88;
-  --fx-reach: 80%;
+  --fx-in: 34%;
+  --fx-out: 86%;
 }
 .tile[data-fx-level="3"] {
   --fx-dur: 680ms;
   --fx-kick: 0.8;
-  --fx-reach: 105%;
+  --fx-in: 8%;
+  --fx-out: 70%;
 }
 .tile[data-fx="heal"] {
   --fx-kick: 1.14;
@@ -1371,9 +1377,8 @@ input[type="text"] {
 .tile[data-fx="damage"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(255, 0, 64, 1) 0%,
-    rgba(255, 0, 64, 1) calc(var(--fx-reach) * 0.55),
-    rgba(255, 0, 64, 0) var(--fx-reach)
+    rgba(255, 0, 64, 0) var(--fx-in),
+    rgba(255, 0, 64, 1) var(--fx-out)
   );
   mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;
@@ -1382,9 +1387,8 @@ input[type="text"] {
 .tile[data-fx="heal"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(0, 255, 110, 1) 0%,
-    rgba(0, 255, 110, 1) calc(var(--fx-reach) * 0.55),
-    rgba(0, 255, 110, 0) var(--fx-reach)
+    rgba(0, 255, 110, 0) var(--fx-in),
+    rgba(0, 255, 110, 1) var(--fx-out)
   );
   mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;

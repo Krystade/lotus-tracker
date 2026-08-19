@@ -364,13 +364,13 @@ const washMode = await page.evaluate(() => {
     if (lvl) t.dataset.fxLevel = String(lvl);
     else delete t.dataset.fxLevel;
     const cs = getComputedStyle(t, "::after");
-    return { blend: cs.mixBlendMode, reach: cs.getPropertyValue("--fx-reach").trim() };
+    return { blend: cs.mixBlendMode, inner: cs.getPropertyValue("--fx-in").trim() };
   };
   const t1 = read(null);
   const t3 = read(3);
   delete t.dataset.fx;
   delete t.dataset.fxLevel;
-  return { blend: t1.blend, r1: t1.reach, r3: t3.reach };
+  return { blend: t1.blend, r1: t1.inner, r3: t3.inner };
 });
 check(
   "damage wash blends hue rather than tinting with alpha",
@@ -380,7 +380,7 @@ check(
 check(
   "wash tiers scale by coverage, not opacity",
   washMode.r1 !== "" && washMode.r3 !== "" && washMode.r1 !== washMode.r3,
-  `tier1 reach ${washMode.r1} -> tier3 ${washMode.r3}`,
+  `tier1 inner edge ${washMode.r1} -> tier3 ${washMode.r3}`,
 );
 
 // The battery toggle must actually halt motion. Each style declares `animation`
