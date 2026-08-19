@@ -59,11 +59,12 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
             reloadWhenSafe();
           }
         };
-        // On launch, every time the app is brought back to the foreground, and
-        // hourly for a session left open all evening.
+        // On launch and every time the app is brought back to the foreground.
+        // Deliberately not on a timer: a game runs for hours with the app in
+        // the foreground the whole time, and the only thing a mid-game check
+        // can do is reload the page out from under the table.
         check();
         document.addEventListener("visibilitychange", check);
-        setInterval(check, 60 * 60 * 1000);
       })
       .catch(() => undefined);
   });
