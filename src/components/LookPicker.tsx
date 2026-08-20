@@ -26,9 +26,11 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
   const style = current.styleId;
   const mix = current.mix;
   const styleDef = LOOK_STYLES.find((s) => s.id === style);
-  // Only styles that paint more than one layer can show two colours; on a
-  // single-layer style a second colour would have nowhere to go.
-  const supportsTwo = (styleDef?.layers ?? 0) >= 2;
+  // Every style except Solid paints something besides the base, so every one
+  // of them has somewhere to put a second colour. The old gate counted DOM
+  // layers, which is not the same question -- it hid the control on Fade and
+  // Stripes, the two styles where two colours read most clearly.
+  const supportsTwo = styleDef !== undefined && styleDef.id !== "solid";
 
   const emit = (colours: string[], styleId: string, m = mix) =>
     onChange(lookId(colours.filter(Boolean).join("~"), styleId, m));

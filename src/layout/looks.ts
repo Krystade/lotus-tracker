@@ -1,4 +1,12 @@
-import { PLAYER_COLORS, contrastRatio, mix, rotateHue, shift, textOn } from "./colors";
+import {
+  PLAYER_COLORS,
+  contrastRatio,
+  hueDirection,
+  mix,
+  rotateHue,
+  shift,
+  textOn,
+} from "./colors";
 
 /**
  * A tile look is a hue crossed with a style.
@@ -253,10 +261,32 @@ function build(
   // the clamp -- every position is a real colour that has been checked -- and
   // makes mix 0 land exactly on the single-colour look rather than merely near
   // it.
-  const lo = paletteFor(base).lo;
-  const hi = colours[1]
-    ? withinInk(paletteFor(mix(base, colours[1], mixAmount)).hi, base)
-    : paletteFor(base).hi;
+  const own = paletteFor(base);
+  let lo = own.lo;
+  let hi = own.hi;
+  if (colours[1]) {
+    // The second colour keeps its OWN hue. paletteFor exists to derive a
+    // variation of a single hue -- it rotates by ~20 degrees and shifts
+    // lightness -- which is right for inventing a highlight out of one colour
+    // and wrong for a colour somebody deliberately chose: run red through it
+    // and a tile ends up tan. So the second colour is only darkened and
+    // lightened, never rotated.
+    //
+    // It reaches BOTH ends of the palette, not just the highlight. Fade and
+    // Stripes read from --look-lo, so a second colour that only touched
+    // --look-hi left them looking single-coloured.
+    const c = colours[1];
+    // One direction for the whole look, taken from the pair the player picked,
+    // so the shadow and the highlight sweep the same way round the wheel
+    // instead of splitting and meeting in the middle.
+    const dir = hueDirection(base, c);
+    lo = mix(own.lo, shift(c, -0.16), mixAmount, dir);
+    hi = mix(own.hi, shift(c, 0.1), mixAmount, dir);
+    // Clamp after blending: contrast is not linear, so two colours that each
+    // clear the bar can blend to one that does not.
+    lo = withinInk(lo, base);
+    hi = withinInk(hi, base);
+  }
   const vars: Record<string, string> = {
     "--look-base": base,
     "--look-lo": lo,

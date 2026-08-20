@@ -106,13 +106,30 @@ check(
   `single ${single} vs mix0 ${at0.hi}`,
 );
 
-// The mix control must not appear where a second colour cannot go.
+// Solid paints nothing but the base, so it is the one style with nowhere to
+// put a second colour. Every other style reads --look-lo or --look-hi and
+// therefore can take one -- including Smoke and Marble, which the old
+// layer-counting gate wrongly excluded along with Fade and Stripes.
+const secondRow = () =>
+  page.locator('.huedot[aria-label="second colour Red"]').count();
+
 await page.evaluate(() => {
-  window.__store.getState().setPlayerLook("p0", "blue-smoke");
+  window.__store.getState().setPlayerLook("p0", "blue");
 });
 await page.waitForTimeout(250);
+check("solid offers no second colour", (await secondRow()) === 0);
+
+for (const st of ["smoke", "fade", "stripe"]) {
+  await page.evaluate((id) => {
+    window.__store.getState().setPlayerLook("p0", `blue-${id}`);
+  }, st);
+  await page.waitForTimeout(250);
+  check(`${st} offers a second colour`, (await secondRow()) === 1);
+}
+
+// And with none chosen there is nothing to mix, so no slider yet.
 check(
-  "no mix slider on a single-layer style",
+  "no mix slider until a second colour is chosen",
   (await page.locator(".slider--mix").count()) === 0,
 );
 
@@ -195,15 +212,19 @@ check(
   weak.bandPct > 15 && mid.bandPct > 15 && strong.bandPct > 15,
   `band 0.3x ${weak.bandPct.toFixed(0)}% | 1x ${mid.bandPct.toFixed(0)}% | 2x ${strong.bandPct.toFixed(0)}%`,
 );
-// Strength must not turn the hue blend back into a muted tint.
-const blend = await page.evaluate(() => {
+// Whatever the strength, the wash colour itself must not change.
+const washColour = await page.evaluate(() => {
   const t = document.querySelector(".tile");
   t.dataset.fx = "damage";
-  const m = getComputedStyle(t, "::after").mixBlendMode;
+  const img = getComputedStyle(t, "::after").backgroundImage;
   delete t.dataset.fx;
-  return m;
+  return /rgba?\(([^)]+)\)/.exec(img)?.[1] ?? "";
 });
-check("strength does not disturb the hue blend", blend === "color", blend);
+check(
+  "strength does not alter the wash colour itself",
+  washColour.startsWith("214, 12, 48"),
+  washColour,
+);
 
 await page.evaluate(() => {
   window.__store.getState().updateSettings({ effectStrength: 1 });

@@ -1300,47 +1300,44 @@ input[type="text"] {
 /* Every action on a tile gets a reaction: a coloured wash over the seat and a
    kick on the life total, scaled by how big the swing was. Driven by data-fx
    on the tile, set for a few hundred ms by useLifeFeedback. */
-/* Tier is scaled by how far the colour REACHES across the tile, not by how
-   transparent it is. A partly transparent tint is a linear mix between the
-   seat colour and the wash, and for a seat whose hue opposes the wash that mix
-   passes through grey -- which is why heal on magenta came out grey-brown and
-   damage on green came out olive. At full strength the hue is unambiguous on
-   every seat, so the tier signal moves to area instead.
-
-   The colour sits on the edges and falls off toward the middle, which is the
-   shape this always had; the tier decides how far in from the rim it creeps.
-   Keeping the centre clear also keeps the wash off the life total.
-
-   --fx-strength (the Settings slider) scales that reach rather than the
-   opacity. Scaling opacity would fade a hue blend back toward the seat colour,
-   which is the linear-mix-through-grey problem the blend was introduced to
-   fix; moving the inner edge changes how much colour there is without ever
-   muddying it. At strength 0 the inner edge reaches 100% and nothing paints. */
+/* A rim of colour that fades inward, with the tier deciding how far in it
+   reaches. Two earlier attempts and what was wrong with each:
+   
+   A partly transparent tint over the WHOLE tile is a linear mix between the
+   seat colour and the wash, so on a seat whose hue opposes the wash the whole
+   tile passes through grey -- heal on magenta came out brown.
+   
+   mix-blend-mode: color fixed the hue but takes luminance from the tile, so
+   the same red renders orange on gold and maroon on purple. It never actually
+   reads as red, which is the entire job.
+   
+   So: an opaque rim in the real colour, clearing to nothing before it reaches
+   the life total. Only the falloff band is part-transparent, and a narrow band
+   reads as a soft edge rather than as a muddy colour. */
 .tile[data-fx] {
   --fx-dur: 300ms;
   --fx-kick: 0.94;
-  --fx-in-base: 55%;
-  --fx-out-base: 102%;
+  --fx-in-base: 82%;
+  --fx-out-base: 108%;
   --fx-wash: 1;
 }
 .tile[data-fx-level="2"] {
   --fx-dur: 440ms;
   --fx-kick: 0.88;
-  --fx-in-base: 34%;
-  --fx-out-base: 86%;
+  --fx-in-base: 58%;
+  --fx-out-base: 100%;
 }
 .tile[data-fx-level="3"] {
   --fx-dur: 680ms;
   --fx-kick: 0.8;
-  --fx-in-base: 8%;
-  --fx-out-base: 70%;
+  --fx-in-base: 30%;
+  --fx-out-base: 92%;
 }
 
-/* Both edges scale, not just the inner one. Moving the inner edge alone drives
-   it toward the fixed outer edge as strength falls, and once the two are a few
-   percent apart the gradient has no room to fade -- it reads as a hard-edged
-   ring rather than a wash. Scaling both keeps the falloff proportionate at
-   every setting. */
+/* Both edges scale with the Settings slider, not just the inner one. Moving
+   the inner edge alone drives it into a fixed outer edge as strength falls,
+   and once the two are a few percent apart the gradient has no room to fade --
+   it reads as a hard-edged ring rather than a wash. */
 .tile[data-fx] {
   --fx-in: max(
     0%,
@@ -1350,15 +1347,6 @@ input[type="text"] {
     0%,
     calc(100% - (100% - var(--fx-out-base)) * var(--fx-strength, 1))
   );
-}
-.tile[data-fx="heal"] {
-  --fx-kick: 1.14;
-}
-.tile[data-fx="heal"][data-fx-level="2"] {
-  --fx-kick: 1.18;
-}
-.tile[data-fx="heal"][data-fx-level="3"] {
-  --fx-kick: 1.24;
 }
 
 /* The wash tints the seat itself and nothing else: it sits above the tile's
@@ -1392,28 +1380,25 @@ input[type="text"] {
   }
 }
 
-/* mix-blend-mode: color takes hue and saturation from the wash and luminance
-   from the tile underneath. Two consequences worth keeping: the tile reads as
-   the right colour whatever seat colour or animated look is beneath it, and
-   because luminance is untouched the life total's contrast ratio is unchanged
-   by construction -- the wash cannot break legibility. */
 .tile[data-fx="damage"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(255, 0, 64, 0) var(--fx-in),
-    rgba(255, 0, 64, 1) var(--fx-out)
+    rgba(214, 12, 48, 0) var(--fx-in),
+    rgba(214, 12, 48, 0.96) var(--fx-out)
   );
-  mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;
 }
 
+/* The heal green is picked so BOTH ink colours clear 3:1 against it, because
+   at full strength the wash can cover the whole tile and there is no longer a
+   luminance-preserving blend to lean on. A brighter green fails white text.
+   juice.test.ts holds the numbers. */
 .tile[data-fx="heal"]::after {
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(0, 255, 110, 0) var(--fx-in),
-    rgba(0, 255, 110, 1) var(--fx-out)
+    rgba(12, 143, 76, 0) var(--fx-in),
+    rgba(12, 143, 76, 0.96) var(--fx-out)
   );
-  mix-blend-mode: color;
   animation: fxWash var(--fx-dur) ease-out;
 }
 

@@ -352,11 +352,11 @@ const inkOk = await page.evaluate(() => {
 });
 check("ink stays one of the two legible choices on an animated look", inkOk);
 
-// The damage/heal wash must stay a hue blend, not an alpha tint. An alpha
-// tint is a linear mix toward the wash colour, so on a seat whose hue opposes
-// it the mix passes through grey -- heal on magenta came out grey-brown that
-// way. mix-blend-mode:color takes luminance from the tile, which both fixes
-// the hue and leaves the life total's contrast ratio untouched.
+// The wash must stay an opaque rim that clears toward the middle. A
+// part-transparent tint over the whole tile mixes through grey on an opposing
+// hue; a luminance-preserving blend renders the same red as orange on gold.
+// An opaque rim avoids both, so what is checked is that the centre is clear
+// and the rim is not.
 const washMode = await page.evaluate(() => {
   const t = document.querySelector(".tile");
   t.dataset.fx = "damage";
@@ -405,8 +405,8 @@ check(
   `band ${geomDefault.band.toFixed(0)}% of the tile`,
 );
 check(
-  "damage wash blends hue rather than tinting with alpha",
-  washMode.blend === "color",
+  "the wash paints its own colour rather than blending into the tile's",
+  washMode.blend === "normal",
   `mix-blend-mode: ${washMode.blend}`,
 );
 check(

@@ -300,3 +300,79 @@ describe("the contrast guarantee across the mix", () => {
     );
   }
 });
+
+describe("the mix stays vivid across its range", () => {
+  // An earlier version of this test measured HSL saturation, which is the
+  // wrong instrument: it passed #874c00 (brown, saturation 1.00) and failed a
+  // perfectly good slate violet. Perceptual chroma is what separates a colour
+  // from mud, so that is what is measured here.
+  const chroma = (hex: string) => {
+    const lin = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    const [r, g, b] = lin;
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+    return Math.sqrt(A * A + B * B);
+  };
+
+  it.each([
+    ["blue", "red"],
+    ["gold", "purple"],
+    ["green", "magenta"],
+    ["blue", "green"],
+  ])("never collapses toward grey blending %s with %s", (a, b) => {
+    const ends = [0, 100].map((m) =>
+      chroma(resolveLook(`${a}~${b}@${m}-stripe`, "#000").vars["--look-lo"]),
+    );
+    // Chroma interpolates in a perceptual space, so the middle can dip a
+    // little below the ends but must never approach neutral.
+    const floor = Math.min(...ends) * 0.55;
+    for (const m of [20, 35, 50, 65, 80]) {
+      const c = chroma(
+        resolveLook(`${a}~${b}@${m}-stripe`, "#000").vars["--look-lo"],
+      );
+      expect(c).toBeGreaterThanOrEqual(floor);
+    }
+  });
+
+  it("discriminates — a straight RGB midpoint of blue and red does collapse", () => {
+    // #786664 is where sRGB interpolation lands halfway. It is nearly neutral.
+    expect(chroma("#786664")).toBeLessThan(0.03);
+    expect(chroma("#3E92CC")).toBeGreaterThan(0.07);
+  });
+});
+
+describe("the mix avoids the muddy band", () => {
+  // Green to magenta is only marginally shorter going round via yellow, and
+  // that route turns the middle of the slider olive and then brown, because
+  // yellow-orange hues have no vivid dark form. It must take the blue side.
+  const isMuddy = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    // Brown/olive: red leads, blue trails badly, and it is dark overall.
+    return r > b + 40 && g > b + 25 && r + g + b < 420;
+  };
+
+  it("does not pass through brown blending green with magenta", () => {
+    for (const m of [20, 35, 50, 65, 80]) {
+      const look = resolveLook(`green~magenta@${m}-stripe`, "#000");
+      expect(isMuddy(look.vars["--look-lo"])).toBe(false);
+    }
+  });
+
+  it("discriminates — the colours it used to produce are caught", () => {
+    expect(isMuddy("#874c00")).toBe(true); // the old 50% step
+    expect(isMuddy("#695e00")).toBe(true); // the old 25% step
+    expect(isMuddy("#11609c")).toBe(false); // what it produces now
+  });
+
+  it("still takes the short way when an end is itself in that band", () => {
+    // Blue to gold genuinely passes through green; there is nothing to avoid
+    // when the destination is the muddy band.
+    const mid = resolveLook("blue~gold@50-stripe", "#000").vars["--look-lo"];
+    expect(mid).not.toBe(resolveLook("blue~gold@0-stripe", "#000").vars["--look-lo"]);
+  });
+});

@@ -20,8 +20,12 @@ await page.waitForTimeout(400);
 
 // Six seats, one per preset hue, so every seat colour is exercised at once.
 await page.evaluate(() => {
+  window.__store.getState().newGame({ playerCount: 6, startingLife: 40 });
+  // Over real animated looks, which is where the wash actually lives -- a flat
+  // seat colour hides whether the effect destroys the look underneath it.
   const st = window.__store.getState();
-  st.newGame({ playerCount: 6, startingLife: 40 });
+  const looks = ["gold-lava", "blue-drift", "magenta-nebula", "red-tide", "green-pulse", "purple-marble"];
+  st.game.players.forEach((p, i) => st.setPlayerLook(p.id, looks[i]));
 });
 await page.waitForTimeout(250);
 
