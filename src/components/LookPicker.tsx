@@ -24,17 +24,20 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
   const primary = spec[0];
   const secondary = spec[1];
   const style = current.styleId;
+  const mix = current.mix;
   const styleDef = LOOK_STYLES.find((s) => s.id === style);
   // Only styles that paint more than one layer can show two colours; on a
   // single-layer style a second colour would have nowhere to go.
   const supportsTwo = (styleDef?.layers ?? 0) >= 2;
 
-  const emit = (colours: string[], styleId: string) =>
-    onChange(lookId(colours.filter(Boolean).join("~"), styleId));
+  const emit = (colours: string[], styleId: string, m = mix) =>
+    onChange(lookId(colours.filter(Boolean).join("~"), styleId, m));
 
   const setPrimary = (c: string) => emit([c, secondary ?? ""], style);
+  // Adding a second colour starts it fully mixed; that is what picking a
+  // colour is asking for, and the slider is right underneath to dial back.
   const setSecondary = (c: string | null) =>
-    emit(c ? [primary, c] : [primary], style);
+    c ? emit([primary, c], style, 1) : emit([primary], style, 1);
 
   const swatchFor = (colour: string, styleId: string) =>
     resolveLook(lookId(colour, styleId), seatColor);
@@ -112,6 +115,35 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
                 aria-label="custom second colour"
               />
             </label>
+          </div>
+        </>
+      )}
+
+      {secondary && (
+        <>
+          <p className="picker__label">Mix</p>
+          <input
+            className="slider slider--mix"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={mix}
+            onChange={(e) => emit(spec, style, Number(e.target.value))}
+            aria-label="second colour mix"
+          />
+          {/* Which colour is at which end, shown rather than described -- the
+              app's own slider-scale pattern, with swatches for the labels. */}
+          <div className="slider__scale mixscale">
+            <LookPreview
+              look={swatchFor(primary, "solid")}
+              className="mixscale__dot"
+            />
+            <span>{Math.round(mix * 100)}%</span>
+            <LookPreview
+              look={swatchFor(secondary, "solid")}
+              className="mixscale__dot"
+            />
           </div>
         </>
       )}

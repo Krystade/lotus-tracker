@@ -110,3 +110,22 @@ export function textOn(hex: string): string {
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return lum > 0.62 ? "#0d0d0d" : "#ffffff";
 }
+
+/**
+ * Linear interpolation between two hex colours in sRGB.
+ *
+ * sRGB rather than a perceptual space on purpose: the result feeds the same
+ * contrast clamp as every other derived colour, so the guarantee holds either
+ * way, and sRGB is what the slider's midpoint looks like to someone dragging
+ * it — a perceptual blend would make the handle position feel non-linear.
+ */
+export function mix(a: string, b: string, t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  const [ar, ag, ab] = rgb(a);
+  const [br, bg, bb] = rgb(b);
+  const ch = (x: number, y: number) =>
+    Math.round(x + (y - x) * clamped)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${ch(ar, br)}${ch(ag, bg)}${ch(ab, bb)}`;
+}

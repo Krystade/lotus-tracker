@@ -224,3 +224,79 @@ describe("preset normalisation", () => {
     expect(resolveLook("#ff8800-lava", "#000").colourSpec).toEqual(["#ff8800"]);
   });
 });
+
+describe("the two-colour mix", () => {
+  // A second colour used to be all-or-nothing. The mix is how much of it
+  // reaches the highlight, encoded in the id as @<percent>.
+  it("defaults to a full second colour when no mix is given", () => {
+    expect(resolveLook("blue~green-lava", "#000").mix).toBe(1);
+  });
+
+  it("parses a mix out of the id", () => {
+    const l = resolveLook("blue~green@40-lava", "#000");
+    expect(l.colourSpec).toEqual(["blue", "green"]);
+    expect(l.mix).toBeCloseTo(0.4);
+    expect(l.styleId).toBe("lava");
+  });
+
+  it("at mix 0 renders exactly as the single-colour look", () => {
+    const none = resolveLook("blue-lava", "#000");
+    const zero = resolveLook("blue~green@0-lava", "#000");
+    expect(zero.vars["--look-hi"]).toBe(none.vars["--look-hi"]);
+    expect(zero.vars["--look-lo"]).toBe(none.vars["--look-lo"]);
+  });
+
+  it("at mix 100 renders exactly as the un-mixed two-colour look", () => {
+    const full = resolveLook("blue~green-lava", "#000");
+    const hundred = resolveLook("blue~green@100-lava", "#000");
+    expect(hundred.vars["--look-hi"]).toBe(full.vars["--look-hi"]);
+  });
+
+  it("moves the highlight as the mix rises", () => {
+    const seen = [0, 25, 50, 75, 100].map(
+      (m) => resolveLook(`blue~red@${m}-lava`, "#000").vars["--look-hi"],
+    );
+    // Not a stuck value: the extremes must differ, and it must actually travel.
+    expect(seen[0]).not.toBe(seen[4]);
+    expect(new Set(seen).size).toBeGreaterThan(2);
+  });
+
+  it("ignores a mix when there is no second colour", () => {
+    expect(resolveLook("blue@40-lava", "#000").mix).toBe(1);
+  });
+
+  it("rejects a malformed mix rather than guessing", () => {
+    expect(resolveLook("blue~green@abc-lava", "#123456").base).toBe("#123456");
+    expect(resolveLook("blue~green@140-lava", "#123456").base).toBe("#123456");
+    expect(resolveLook("blue~green@-5-lava", "#123456").base).toBe("#123456");
+  });
+
+  it("round-trips an id carrying a mix", () => {
+    for (const id of ["blue~green@40-lava", "blue~green-lava", "blue-lava"]) {
+      const l = resolveLook(id, "#000");
+      expect(lookId(l.colourSpec.join("~"), l.styleId, l.mix)).toBe(id);
+    }
+  });
+});
+
+describe("the contrast guarantee across the mix", () => {
+  // The clamp has to hold at every position of the slider, not just its ends.
+  const pairs = [
+    ["#000000", "#ffffff"],
+    ["#ffffff", "#000000"],
+    ["#E4B33D", "#3E92CC"],
+    ["#4C9A52", "#B23A6B"],
+  ];
+  for (const [a, b] of pairs) {
+    it.each([0, 15, 40, 60, 85, 100])(
+      `keeps ${a}~${b} legible at mix %i`,
+      (m) => {
+        const look = resolveLook(`${a}~${b}@${m}-lava`, "#000");
+        const ink = textOn(look.base);
+        for (const c of look.paintedColours) {
+          expect(contrastRatio(ink, c)).toBeGreaterThanOrEqual(3);
+        }
+      },
+    );
+  }
+});

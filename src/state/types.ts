@@ -89,6 +89,8 @@ export interface Settings {
   animateLooks: boolean;
   /** Multiplier on look animation speed; 1 is the authored pace. */
   lookSpeed: number;
+  /** Multiplier on how much of the tile the damage/heal wash covers. */
+  effectStrength: number;
 }
 
 export interface TurnState {

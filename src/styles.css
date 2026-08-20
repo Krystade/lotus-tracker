@@ -1305,28 +1305,51 @@ input[type="text"] {
    seat colour and the wash, and for a seat whose hue opposes the wash that mix
    passes through grey -- which is why heal on magenta came out grey-brown and
    damage on green came out olive. At full strength the hue is unambiguous on
-   every seat, so the tier signal moves to area instead. */
-/* The colour sits on the edges and falls off toward the middle, which is the
+   every seat, so the tier signal moves to area instead.
+
+   The colour sits on the edges and falls off toward the middle, which is the
    shape this always had; the tier decides how far in from the rim it creeps.
-   Keeping the centre clear also keeps the wash off the life total. */
+   Keeping the centre clear also keeps the wash off the life total.
+
+   --fx-strength (the Settings slider) scales that reach rather than the
+   opacity. Scaling opacity would fade a hue blend back toward the seat colour,
+   which is the linear-mix-through-grey problem the blend was introduced to
+   fix; moving the inner edge changes how much colour there is without ever
+   muddying it. At strength 0 the inner edge reaches 100% and nothing paints. */
 .tile[data-fx] {
   --fx-dur: 300ms;
   --fx-kick: 0.94;
-  --fx-in: 55%;
-  --fx-out: 102%;
+  --fx-in-base: 55%;
+  --fx-out-base: 102%;
   --fx-wash: 1;
 }
 .tile[data-fx-level="2"] {
   --fx-dur: 440ms;
   --fx-kick: 0.88;
-  --fx-in: 34%;
-  --fx-out: 86%;
+  --fx-in-base: 34%;
+  --fx-out-base: 86%;
 }
 .tile[data-fx-level="3"] {
   --fx-dur: 680ms;
   --fx-kick: 0.8;
-  --fx-in: 8%;
-  --fx-out: 70%;
+  --fx-in-base: 8%;
+  --fx-out-base: 70%;
+}
+
+/* Both edges scale, not just the inner one. Moving the inner edge alone drives
+   it toward the fixed outer edge as strength falls, and once the two are a few
+   percent apart the gradient has no room to fade -- it reads as a hard-edged
+   ring rather than a wash. Scaling both keeps the falloff proportionate at
+   every setting. */
+.tile[data-fx] {
+  --fx-in: max(
+    0%,
+    calc(100% - (100% - var(--fx-in-base)) * var(--fx-strength, 1))
+  );
+  --fx-out: max(
+    0%,
+    calc(100% - (100% - var(--fx-out-base)) * var(--fx-strength, 1))
+  );
 }
 .tile[data-fx="heal"] {
   --fx-kick: 1.14;
@@ -1397,7 +1420,9 @@ input[type="text"] {
 /* Death stays a plain alpha dim rather than a colour blend: it is a loss of
    light, not a change of hue, and black has no hue to blend in. */
 .tile[data-fx="death"] {
-  --fx-wash: 0.62;
+  /* Safe to scale by opacity here, unlike the colour washes: black has no hue
+     to mute, so a weaker dim is just a weaker dim. */
+  --fx-wash: calc(0.62 * var(--fx-strength, 1));
 }
 
 .tile[data-fx="death"]::after {
@@ -2143,4 +2168,59 @@ input[type="text"] {
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 6px;
+}
+
+/* The mix scale names its ends with the actual colours rather than words, so
+   which way the slider runs is never in question. A gradient track was the
+   first attempt: `.slider` uses the native control via accent-color, and the
+   native track paints straight over any background set on the input. */
+.mixscale {
+  align-items: center;
+}
+
+.mixscale__dot {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+/* A tile-shaped preview that plays the real effect, so the strength slider can
+   be judged where it is set instead of by starting a game. */
+.fxpreview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  border-radius: 12px;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  border: none;
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.fxpreview__life {
+  position: relative;
+  z-index: 2;
+  font-size: 2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.fxpreview__hint {
+  position: absolute;
+  z-index: 2;
+  bottom: 6px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
 }

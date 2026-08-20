@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS: Settings = {
   effectsOn: true,
   animateLooks: true,
   lookSpeed: 1,
+  effectStrength: 1,
 };
 
 function emptyCounters(): CounterSet {

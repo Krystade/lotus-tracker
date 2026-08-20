@@ -47,6 +47,7 @@ export default function App() {
   // rAF, so this is worth doing explicitly on a screen held awake for hours.
   const animateLooks = useStore((s) => s.settings.animateLooks);
   const lookSpeed = useStore((s) => s.settings.lookSpeed);
+  const effectStrength = useStore((s) => s.settings.effectStrength);
   const [hidden, setHidden] = useState(
     typeof document !== "undefined" && document.visibilityState === "hidden",
   );
@@ -72,7 +73,12 @@ export default function App() {
   return (
     <div
       className={`app${still ? " app--still" : ""}`}
-      style={{ "--look-speed": String(lookSpeed) } as CSSProperties}
+      style={
+        {
+          "--look-speed": String(lookSpeed),
+          "--fx-strength": String(effectStrength),
+        } as CSSProperties
+      }
     >
       <Board onOpenDetail={setDetailId} />
       <CenterMenu

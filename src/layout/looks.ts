@@ -1,4 +1,4 @@
-import { PLAYER_COLORS, contrastRatio, rotateHue, shift, textOn } from "./colors";
+import { PLAYER_COLORS, contrastRatio, mix, rotateHue, shift, textOn } from "./colors";
 
 /**
  * A tile look is a hue crossed with a style.
@@ -102,6 +102,8 @@ export interface ResolvedLook {
   hueId: string;
   /** The raw colour tokens, e.g. ["blue"] or ["#aabbcc", "green"]. */
   colourSpec: string[];
+  /** How much of the second colour reaches the highlight, 0..1. 1 with none. */
+  mix: number;
   styleId: string;
   name: string;
   /** The flat colour contrast is decided from. */
@@ -148,8 +150,18 @@ function noiseDataUri(colour: string, frequency: number, octaves: number, seed: 
  * Parsing splits at the LAST dash: a style id never contains one, but a colour
  * spec can. That is also what keeps every legacy id valid unchanged.
  */
-export function lookId(colourSpec: string, styleId: string): string {
-  return styleId === "solid" ? colourSpec : `${colourSpec}-${styleId}`;
+export function lookId(
+  colourSpec: string,
+  styleId: string,
+  mixAmount = 1,
+): string {
+  // A mix only means something with two colours, and a full mix is the
+  // default -- both are left out of the id so existing ids are unchanged.
+  const spec =
+    colourSpec.includes("~") && mixAmount < 1
+      ? `${colourSpec}@${Math.round(mixAmount * 100)}`
+      : colourSpec;
+  return styleId === "solid" ? spec : `${spec}-${styleId}`;
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -162,7 +174,7 @@ function tokenToHex(token: string): string | null {
 
 export function parseLookId(
   id: string,
-): { colourSpec: string[]; styleId: string } | null {
+): { colourSpec: string[]; styleId: string; mix: number } | null {
   const dash = id.lastIndexOf("-");
   // A trailing dash, or a dash that is part of nothing, is malformed.
   const hasStyle = dash > 0 && dash < id.length - 1;
@@ -170,7 +182,23 @@ export function parseLookId(
   const styleId = hasStyle ? id.slice(dash + 1) : "solid";
   if (!LOOK_STYLES.some((s) => s.id === styleId)) return null;
 
-  const raw = spec.split("~").filter((t) => t !== "");
+  // The mix rides on the colour spec as @<percent>. `@` cannot appear in a hue
+  // id or a hex literal, so it is unambiguous wherever it lands.
+  const at = spec.indexOf("@");
+  let mix = 1;
+  let colours = spec;
+  if (at !== -1) {
+    colours = spec.slice(0, at);
+    const pct = spec.slice(at + 1);
+    // Reject rather than guess: a malformed mix means the id was not written
+    // by this app, and silently defaulting would hide the corruption.
+    if (!/^\d{1,3}$/.test(pct)) return null;
+    const n = Number(pct);
+    if (n > 100) return null;
+    mix = n / 100;
+  }
+
+  const raw = colours.split("~").filter((t) => t !== "");
   if (raw.length === 0 || raw.length > 2) return null;
   if (raw.some((t) => tokenToHex(t) === null)) return null;
   // A hex that happens to be one of the presets is normalised back to the hue
@@ -180,7 +208,9 @@ export function parseLookId(
     const named = HUES.find((h) => h.base.toLowerCase() === t.toLowerCase());
     return named ? named.id : t.toLowerCase();
   });
-  return { colourSpec, styleId };
+  // A mix with nothing to mix into is meaningless; normalise it away so the
+  // id round-trips to the same string it came from.
+  return { colourSpec, styleId, mix: colourSpec.length === 2 ? mix : 1 };
 }
 
 export function allLookIds(): string[] {
@@ -206,16 +236,26 @@ function paletteFor(base: string): { lo: string; hi: string } {
   };
 }
 
-function build(colourSpec: string[], style: LookStyle): ResolvedLook {
+function build(
+  colourSpec: string[],
+  style: LookStyle,
+  mixAmount = 1,
+): ResolvedLook {
   const colours = colourSpec.map((t) => tokenToHex(t) as string);
   const base = colours[0];
   // The second colour, when given, supplies the highlight; the shadow always
   // comes from the first so the tile still reads as that seat's colour. Both
   // are clamped against the ink chosen for the base, which is why a custom
   // colour picked from a wheel cannot break legibility.
+  //
+  // The mix blends the SOURCE colour before the highlight is derived, rather
+  // than blending two finished highlights. That keeps the whole slider inside
+  // the clamp -- every position is a real colour that has been checked -- and
+  // makes mix 0 land exactly on the single-colour look rather than merely near
+  // it.
   const lo = paletteFor(base).lo;
   const hi = colours[1]
-    ? withinInk(paletteFor(colours[1]).hi, base)
+    ? withinInk(paletteFor(mix(base, colours[1], mixAmount)).hi, base)
     : paletteFor(base).hi;
   const vars: Record<string, string> = {
     "--look-base": base,
@@ -226,9 +266,10 @@ function build(colourSpec: string[], style: LookStyle): ResolvedLook {
   if (style.id === "marble") vars["--look-noise"] = noiseDataUri(hi, 0.014, 5, 3, 0.88);
   const named = HUES.find((h) => h.base === base);
   return {
-    id: lookId(colourSpec.join("~"), style.id),
+    id: lookId(colourSpec.join("~"), style.id, mixAmount),
     hueId: HUES.find((h) => h.id === colourSpec[0])?.id ?? "custom",
     colourSpec,
+    mix: colours[1] ? mixAmount : 1,
     styleId: style.id,
     name:
       style.id === "solid"
@@ -261,6 +302,7 @@ export function resolveLook(
     id: "custom",
     hueId: "custom",
     colourSpec: [color],
+    mix: 1,
     styleId: "solid",
     name: "Custom",
     base: color,
@@ -278,5 +320,5 @@ export function resolveLook(
   if (!parsed) return fallback;
   const style = LOOK_STYLES.find((s) => s.id === parsed.styleId);
   if (!style) return fallback;
-  return build(parsed.colourSpec, style);
+  return build(parsed.colourSpec, style, parsed.mix);
 }
