@@ -372,6 +372,38 @@ const washMode = await page.evaluate(() => {
   delete t.dataset.fxLevel;
   return { blend: t1.blend, r1: t1.inner, r3: t3.inner };
 });
+
+// Measure the gradient geometry rather than compare the custom property as a
+// string: getComputedStyle returns it with vars substituted but the calc()
+// NOT evaluated, so string comparison compares arithmetic nobody performed.
+// A probe whose width is that expression makes the browser do the maths.
+const washGeometry = () =>
+  page.evaluate(() => {
+    const t = document.querySelector(".tile");
+    t.dataset.fx = "damage";
+    t.dataset.fxLevel = "3";
+    const mk = (prop) => {
+      const d = document.createElement("div");
+      d.style.cssText = `position:absolute;top:0;left:0;height:1px;width:var(${prop});`;
+      t.appendChild(d);
+      const w = d.getBoundingClientRect().width;
+      d.remove();
+      return w;
+    };
+    const inner = mk("--fx-in");
+    const outer = mk("--fx-out");
+    const wide = t.getBoundingClientRect().width;
+    delete t.dataset.fx;
+    delete t.dataset.fxLevel;
+    return { inner: (inner / wide) * 100, band: ((outer - inner) / wide) * 100 };
+  });
+
+const geomDefault = await washGeometry();
+check(
+  "the wash keeps a soft falloff rather than a hard ring",
+  geomDefault.band > 15,
+  `band ${geomDefault.band.toFixed(0)}% of the tile`,
+);
 check(
   "damage wash blends hue rather than tinting with alpha",
   washMode.blend === "color",
@@ -382,6 +414,73 @@ check(
   washMode.r1 !== "" && washMode.r3 !== "" && washMode.r1 !== washMode.r3,
   `tier1 inner edge ${washMode.r1} -> tier3 ${washMode.r3}`,
 );
+
+// The two blend sliders, driven through the UI rather than the store, since
+// that is all a deployed build exposes.
+await openMenu();
+await page.getByText(/Settings/).first().click();
+await page.waitForTimeout(350);
+
+const strength = page.locator('input[aria-label="damage and heal effect strength"]');
+check("the effect strength slider is present", (await strength.count()) === 1);
+await strength.fill("0.3");
+await page.waitForTimeout(150);
+const preview = await page.locator(".fxpreview").count();
+check("the settings preview tile is present", preview === 1);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(300);
+const geomWeak = await washGeometry();
+check(
+  "moving the strength slider changes what the tile paints",
+  geomWeak.inner > geomDefault.inner + 5 && geomWeak.band > 15,
+  `inner ${geomDefault.inner.toFixed(0)}% -> ${geomWeak.inner.toFixed(0)}%, band ${geomWeak.band.toFixed(0)}%`,
+);
+await openMenu();
+await page.getByText(/Settings/).first().click();
+await page.waitForTimeout(350);
+await page
+  .locator('input[aria-label="damage and heal effect strength"]')
+  .fill("1");
+await page.waitForTimeout(120);
+await esc();
+
+// The mix slider only exists once a second colour is chosen, so this walks the
+// same path a player does.
+await page.locator(".tile__more").nth(0).click({ force: true });
+await page.waitForTimeout(300);
+await page.locator(".disclose").click({ force: true });
+await page.waitForTimeout(400);
+check(
+  "no mix slider before a second colour is chosen",
+  (await page.locator(".slider--mix").count()) === 0,
+);
+await page.locator('.stylechip[aria-label="Lava"]').click({ force: true });
+await page.waitForTimeout(300);
+await page
+  .locator('.huedot[aria-label="second colour Red"]')
+  .click({ force: true });
+await page.waitForTimeout(300);
+const mixSlider = page.locator(".slider--mix");
+check(
+  "choosing a second colour reveals the mix slider",
+  (await mixSlider.count()) === 1,
+);
+const readHi = () =>
+  page.evaluate(() =>
+    getComputedStyle(document.querySelector(".look"))
+      .getPropertyValue("--look-hi")
+      .trim(),
+  );
+const hiFull = await readHi();
+await mixSlider.fill("0");
+await page.waitForTimeout(250);
+const hiNone = await readHi();
+check(
+  "the mix slider repaints the tile's highlight",
+  hiFull !== hiNone && hiNone !== "",
+  `${hiFull} -> ${hiNone}`,
+);
+await esc();
 
 // The battery toggle must actually halt motion. Each style declares `animation`
 // as a shorthand, which resets play-state to running and outranks the pause
