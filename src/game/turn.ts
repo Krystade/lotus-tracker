@@ -1,10 +1,18 @@
+import { isPlayerDead } from "./lethal";
 import type { Player, TurnState } from "../state/types";
 
 /**
  * Returns the id of the next player after `currentId`, walking `order` —
- * the clockwise seating order derived from the layout — and skipping
- * eliminated players. Wraps around. If everyone else is eliminated, returns
- * the current player.
+ * the clockwise seating order derived from the layout — and skipping players
+ * who are out. Wraps around. If nobody else is left, returns the current
+ * player.
+ *
+ * "Out" means the flag OR dead by rule. Nobody has to press "Mark eliminated"
+ * for a player to be out: the tile shows a skull as soon as life hits 0,
+ * poison reaches 10, or one commander has dealt 21. Checking only the flag
+ * meant that in a game that ends the normal way -- by damage, with nobody
+ * tidying up afterwards -- the active-turn ring and a fresh countdown kept
+ * being handed to corpses, which is exactly when turn tracking matters most.
  *
  * `order` is the source of truth for who sits where; the players array is only
  * consulted for liveness. If the order does not describe the current seat (a
@@ -36,7 +44,8 @@ export function nextActivePlayerId(
     const candidate = players.find(
       (p) => p.id === ring[(start + step) % ring.length],
     );
-    if (candidate && !candidate.eliminated) return candidate.id;
+    if (candidate && !candidate.eliminated && !isPlayerDead(candidate))
+      return candidate.id;
   }
   return currentId;
 }

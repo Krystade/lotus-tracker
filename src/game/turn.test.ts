@@ -145,3 +145,74 @@ describe("tickTurn", () => {
     expect(tickTurn(paused, 5)).toEqual(paused);
   });
 });
+
+describe("passing turns past players who are dead but not flagged", () => {
+  // The tile shows a skull the moment life hits 0, poison reaches 10, or one
+  // commander deals 21 -- nobody has to press "Mark eliminated" for a player
+  // to be out. Turn passing only checked the flag, so in a normal game that
+  // ends by damage rather than by anyone tidying up, the active-turn ring and
+  // a fresh countdown kept landing on corpses.
+  const dead = (id: string, patch: Partial<Player>): Player => ({
+    id,
+    name: id,
+    color: "#000",
+    life: 40,
+    counters: { tax: 0, poison: 0, energy: 0, experience: 0, storm: 0, charge: 0, custom: [] },
+    commanderDamage: {},
+    eliminated: false,
+    ...patch,
+  });
+
+  const ring = ["p0", "p1", "p2", "p3"];
+
+  it("skips a player at zero life", () => {
+    const players = [dead("p0", {}), dead("p1", { life: 0 }), dead("p2", {}), dead("p3", {})];
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p2");
+  });
+
+  it("skips a player on negative life", () => {
+    const players = [dead("p0", {}), dead("p1", { life: -7 }), dead("p2", {}), dead("p3", {})];
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p2");
+  });
+
+  it("skips a player poisoned out", () => {
+    const players = [
+      dead("p0", {}),
+      dead("p1", { counters: { tax: 0, poison: 10, energy: 0, experience: 0, storm: 0, charge: 0, custom: [] } }),
+      dead("p2", {}),
+      dead("p3", {}),
+    ];
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p2");
+  });
+
+  it("skips a player killed by commander damage", () => {
+    const players = [
+      dead("p0", {}),
+      dead("p1", { commanderDamage: { p0: 21 } }),
+      dead("p2", {}),
+      dead("p3", {}),
+    ];
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p2");
+  });
+
+  it("walks past several dead players to the last one standing", () => {
+    const players = [
+      dead("p0", {}),
+      dead("p1", { life: -1 }),
+      dead("p2", { life: -1 }),
+      dead("p3", { life: -1 }),
+    ];
+    // The sole survivor keeps the turn rather than it landing on a corpse.
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p0");
+  });
+
+  it("still returns someone when everyone is dead", () => {
+    const players = ring.map((id) => dead(id, { life: 0 }));
+    expect(ring).toContain(nextActivePlayerId(players, "p1", ring));
+  });
+
+  it("a revived player rejoins the rotation", () => {
+    const players = [dead("p0", {}), dead("p1", { life: 3 }), dead("p2", {}), dead("p3", {})];
+    expect(nextActivePlayerId(players, "p0", ring)).toBe("p1");
+  });
+});
