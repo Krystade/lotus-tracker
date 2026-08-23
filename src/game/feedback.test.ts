@@ -66,9 +66,38 @@ describe("feedbackFor", () => {
 });
 
 describe("vibrationFor", () => {
-  it("buzzes hardest for death", () => {
-    const death = vibrationFor({ kind: "death", intensity: 3 });
-    expect(Array.isArray(death)).toBe(true);
+  // How long a pattern actually buzzes for. In the Vibration API an array
+  // alternates on/off starting with ON, so the even indices are the buzzes and
+  // the odd ones are the gaps. A bare number is a single buzz of that length.
+  const buzzMs = (v: number | number[]) =>
+    Array.isArray(v)
+      ? v.filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0)
+      : v;
+
+  it("buzzes harder for death than for any other feedback", () => {
+    // The previous version of this test asserted only Array.isArray(death),
+    // which `[1]` and even `[]` satisfy -- it could not tell a five-pulse
+    // death buzz from a silent blip, despite its own name claiming it did.
+    const death = buzzMs(vibrationFor({ kind: "death", intensity: 3 }));
+    const others = ([1, 2, 3] as const).flatMap((intensity) => [
+      buzzMs(vibrationFor({ kind: "damage", intensity })),
+      buzzMs(vibrationFor({ kind: "heal", intensity })),
+    ]);
+    expect(death).toBeGreaterThan(Math.max(...others));
+  });
+
+  it("pins the death pattern so a silent one cannot slip through", () => {
+    expect(vibrationFor({ kind: "death", intensity: 3 })).toEqual([
+      90, 60, 90, 60, 170,
+    ]);
+  });
+
+  it("discriminates — a single-blip death pattern fails both checks", () => {
+    const blip = [1];
+    expect(buzzMs(blip)).toBeLessThan(
+      buzzMs(vibrationFor({ kind: "damage", intensity: 3 })),
+    );
+    expect(blip).not.toEqual([90, 60, 90, 60, 170]);
   });
 
   it("grows with damage intensity", () => {
