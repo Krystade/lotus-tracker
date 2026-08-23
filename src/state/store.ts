@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import {
+  DEFAULT_SETTINGS,
   COMMANDER_TAX_STEP,
   type CounterKey,
   type CounterSet,
@@ -11,6 +12,7 @@ import {
   type PlayerProfile,
   type Settings,
 } from "./types";
+import { sanitizeCounters, sanitizeSettings } from "./sanitize";
 import {
   applyLifeDelta,
   clampCounter,
@@ -50,18 +52,6 @@ const safeStorage = {
   },
 };
 
-const DEFAULT_SETTINGS: Settings = {
-  defaultTurnBudgetSec: 300,
-  turnTimerScale: 1,
-  soundOn: true,
-  vibrateOn: true,
-  keepAwake: true,
-  turnTimerEnabled: true,
-  effectsOn: true,
-  animateLooks: true,
-  lookSpeed: 1,
-  effectStrength: 1,
-};
 
 function emptyCounters(): CounterSet {
   return {
@@ -683,7 +673,7 @@ export const useStore = create<StoreState>()(
                 ...createPlayer(i, current.game.startingLife),
                 ...pl,
                 id: `p${i}`, // normalize even if a persisted id is corrupt
-                counters: { ...emptyCounters(), ...(pl?.counters ?? {}) },
+                counters: sanitizeCounters(pl?.counters),
                 commanderDamage: pl?.commanderDamage ?? {},
               }))
             : current.game.players;
@@ -714,7 +704,10 @@ export const useStore = create<StoreState>()(
         return {
           ...current,
           ...p,
-          settings: { ...current.settings, ...(p.settings ?? {}) },
+          settings: sanitizeSettings(
+            { ...current.settings, ...(p.settings ?? {}) },
+            current.settings,
+          ),
           customLayouts: p.customLayouts ?? current.customLayouts,
           profiles: Array.isArray(p.profiles) ? p.profiles : current.profiles,
           setups: Array.isArray(p.setups) ? p.setups : current.setups,

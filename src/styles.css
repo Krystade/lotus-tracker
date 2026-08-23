@@ -2209,3 +2209,61 @@ input[type="text"] {
   text-transform: uppercase;
   opacity: 0.75;
 }
+
+/* ---------- crash screen ---------- */
+/* Shown only by ErrorBoundary. Deliberately plain and centred rather than
+   rotated to a seat: whoever is reading this is picking the phone up. */
+.crash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  background: var(--bg, #0b0b0d);
+  color: #f2eff5;
+  text-align: center;
+}
+
+.crash__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.crash__body {
+  margin: 0;
+  max-width: 34ch;
+  color: #b8b2c2;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.crash__btn {
+  width: min(320px, 100%);
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid #3a3542;
+  background: #1c1922;
+  color: #f2eff5;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.crash__btn--primary {
+  background: var(--pink, #ef3f6b);
+  border-color: transparent;
+}
+
+.crash__detail {
+  margin: 6px 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 0.7rem;
+  color: #7d7789;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

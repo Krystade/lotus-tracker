@@ -126,3 +126,19 @@ export interface GameSetup {
   turnTimerEnabled: boolean;
   defaultTurnBudgetSec: number;
 }
+
+
+/** Shipped defaults. Lives here so persisted-state repair can reach it
+ * without importing the store, which imports the repair. */
+export const DEFAULT_SETTINGS: Settings = {
+  defaultTurnBudgetSec: 300,
+  turnTimerScale: 1,
+  soundOn: true,
+  vibrateOn: true,
+  keepAwake: true,
+  turnTimerEnabled: true,
+  effectsOn: true,
+  animateLooks: true,
+  lookSpeed: 1,
+  effectStrength: 1,
+};
