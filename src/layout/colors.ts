@@ -119,7 +119,22 @@ export function textOn(hex: string): string {
   const b = parseInt(m.slice(4, 6), 16);
   // Perceived luminance (sRGB weights).
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.62 ? "#0d0d0d" : "#ffffff";
+  const preferred = lum > 0.62 ? "#0d0d0d" : "#ffffff";
+  const other = preferred === "#ffffff" ? "#0d0d0d" : "#ffffff";
+
+  // The threshold above is a taste call, made in PERCEIVED luminance, but the
+  // guarantee is stated in WCAG RELATIVE luminance. The two disagree on
+  // high-chroma colours: pure green scores 0.587 perceived, so this picks
+  // white -- which is 1.37:1 against it, when black would have been 14:1.
+  //
+  // Every preset clears the bar on its preferred ink, so this fallback never
+  // fires for them and their appearance is unchanged. It exists for colours
+  // picked from the wheel, which are unvetted by definition.
+  //
+  // It cannot fail to find a legible ink: white and black contrast are equal
+  // at relative luminance 0.179, where both are 4.58:1, so the better of the
+  // two is always at least that. colors.test.ts asserts it.
+  return contrastRatio(preferred, hex) >= 3 ? preferred : other;
 }
 
 /**
