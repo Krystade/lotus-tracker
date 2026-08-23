@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { feedbackFor, vibrationFor, type Feedback } from "../game/feedback";
 import { vibrate } from "../util/alert";
 
-/** How long each tier's effect stays on screen, in ms. */
+/**
+ * How long each tier's effect stays on screen, in ms.
+ *
+ * These MUST match --fx-dur in styles.css. They drifted 30-40ms short of it
+ * once, which truncated the tail of every fade-out.
+ */
 const DURATION: Record<Feedback["intensity"], number> = {
-  1: 260,
-  2: 400,
-  3: 650,
+  1: 300,
+  2: 440,
+  3: 680,
 };
 
 /**
@@ -26,6 +31,7 @@ export function useLifeFeedback(
   const [effect, setEffect] = useState<Feedback | null>(null);
   const prev = useRef({ life, dead });
   const timer = useRef<number | null>(null);
+  const frame = useRef<number | null>(null);
 
   useEffect(() => {
     const before = prev.current;
@@ -36,21 +42,37 @@ export function useLifeFeedback(
     const next = feedbackFor(before, { life, dead });
     if (!next) return;
 
-    setEffect(next);
     if (haptics) {
       const pattern = vibrationFor(next);
       if (pattern !== 0) vibrate(pattern);
     }
     if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(
-      () => setEffect(null),
-      DURATION[next.intensity],
-    );
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+
+    // Clear first, then set on the next frame.
+    //
+    // Holding the minus button fires the same feedback over and over, so
+    // setEffect would hand React an identical {kind, intensity} and the
+    // rendered attributes would not change. An unchanged attribute is not
+    // rewritten, and a CSS animation only restarts when its element or its
+    // animation property changes -- so the wash played once and then sat at
+    // opacity 0 while the life total kept dropping. Removing the attribute for
+    // one frame is what makes the next hit visibly fire.
+    setEffect(null);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      setEffect(next);
+      timer.current = window.setTimeout(
+        () => setEffect(null),
+        DURATION[next.intensity],
+      );
+    });
   }, [life, dead, enabled, haptics]);
 
   useEffect(
     () => () => {
       if (timer.current !== null) window.clearTimeout(timer.current);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
     },
     [],
   );
