@@ -1,7 +1,6 @@
 import { DEFAULT_SETTINGS } from "./types";
 import type {
   ArcadeBests,
-  Rotation,
   CounterSet,
   CustomCounter,
   Settings,
@@ -70,13 +69,6 @@ export function sanitizeSettings(v: unknown, defaults?: Settings): Settings {
     turnTimerScale: num(s.turnTimerScale, d.turnTimerScale),
     lookSpeed: num(s.lookSpeed, d.lookSpeed),
     effectStrength: num(s.effectStrength, d.effectStrength),
-    // A rotation that is not one of the four quarter turns would leave a panel
-    // askew with no control that can straighten it.
-    arcadeRotation: ([0, 90, 180, 270] as const).includes(
-      s.arcadeRotation as 0 | 90 | 180 | 270,
-    )
-      ? (s.arcadeRotation as Rotation)
-      : d.arcadeRotation,
     soundOn: bool(s.soundOn, d.soundOn),
     vibrateOn: bool(s.vibrateOn, d.vibrateOn),
     keepAwake: bool(s.keepAwake, d.keepAwake),

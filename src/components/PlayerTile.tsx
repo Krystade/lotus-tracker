@@ -17,11 +17,15 @@ import { useLifeFeedback } from "../hooks/useLifeFeedback";
 import { CounterChips, type CounterRef } from "./CounterChips";
 import { CounterQuickAdjust } from "./CounterQuickAdjust";
 import { Digits } from "./Digits";
+import { ArcadeTile } from "./ArcadeTile";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
 interface Props {
   placement: Placement;
   onOpenDetail: (playerId: string) => void;
+  /** This seat has the pass-the-time games open over its tile. */
+  arcadeOpen: boolean;
+  onCloseArcade: () => void;
 }
 
 // Sits just above the counter-chip row that owns the bottom edge. Still
@@ -46,7 +50,12 @@ function screenToLocal(rot: Rotation, dx: number, dy: number): [number, number] 
   }
 }
 
-export function PlayerTile({ placement, onOpenDetail }: Props) {
+export function PlayerTile({
+  placement,
+  onOpenDetail,
+  arcadeOpen,
+  onCloseArcade,
+}: Props) {
   const pid = placement.playerId;
   const player = useStore((s) => s.game.players.find((p) => p.id === pid));
   const turn = useStore((s) => s.game.turn);
@@ -337,6 +346,10 @@ export function PlayerTile({ placement, onOpenDetail }: Props) {
             </span>
           </button>
         )}
+
+        {/* Last inside the rotated content box, so it covers this tile and
+            only this tile, already facing the right way. */}
+        {arcadeOpen && <ArcadeTile playerId={pid} onClose={onCloseArcade} />}
       </div>
 
       {quickCounter && (

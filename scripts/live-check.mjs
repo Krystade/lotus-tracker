@@ -519,12 +519,34 @@ await esc();
 phase = "arcade"; console.log("pass the time");
 await openMenu();
 await page.getByText("Pass the time").click();
-await page.waitForSelector(".panel--arcade", { timeout: 10000 });
+await page.waitForSelector(".seatpick", { timeout: 10000 });
+// A seat, not the middle of the board: the games play inside that player's
+// own tile so the rest stays readable for whoever's turn it is.
+await page.locator(".seatpick__seat").nth(3).click({ force: true });
+await page.waitForSelector(".arct", { timeout: 10000 });
 check("all three games are listed", (await page.locator(".arc__pick").count()) === 3);
 check(
   "whose turn it is stays visible over the games",
-  (await page.locator(".arc__turn-name").count()) === 1,
-  await page.locator(".arc__turn-name").innerText(),
+  (await page.locator(".arct__who").count()) === 1,
+  await page.locator(".arct__who").innerText(),
+);
+
+// The reason it moved: every other life total must still be readable.
+const clearBoard = await page.evaluate(() => {
+  const a = document.querySelector(".arct").getBoundingClientRect();
+  return [...document.querySelectorAll(".tile__life")]
+    .filter((el) => !el.closest(".tile").querySelector(".arct"))
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      const w = Math.max(0, Math.min(r.right, a.right) - Math.max(r.left, a.left));
+      const h = Math.max(0, Math.min(r.bottom, a.bottom) - Math.max(r.top, a.top));
+      return Math.round((100 * (w * h)) / (r.width * r.height || 1));
+    });
+});
+check(
+  "every other life total stays uncovered",
+  clearBoard.length === 5 && clearBoard.every((c) => c === 0),
+  `${clearBoard.length} others: ${clearBoard.join(",")}%`,
 );
 
 // Quick Draw is the one that can be played to a score in two taps.
@@ -548,7 +570,7 @@ check(
 );
 
 // Mana Match only needs to prove it deals a board nothing can read through.
-await page.click(".arc__back");
+await page.click(".arct__back");
 await page.waitForTimeout(200);
 await page.getByText("Mana Match").click();
 await page.waitForSelector(".mcard");
@@ -563,7 +585,7 @@ check(
 );
 await esc();
 await page.waitForTimeout(200);
-check("the games close again", (await page.locator(".panel--arcade").count()) === 0);
+check("the games close again", (await page.locator(".arct").count()) === 0);
 
 // --- responsive ------------------------------------------------------
 phase = "responsive"; console.log("responsive");

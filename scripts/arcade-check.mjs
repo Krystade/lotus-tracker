@@ -36,11 +36,20 @@ await page.evaluate(() =>
   window.__store.getState().newGame({ playerCount: 4, startingLife: 40 }),
 );
 
-const openArcade = async () => {
+// Seat 3 plays; seat 0 is left taking its turn, which is the arrangement the
+// whole design is about.
+const SEAT = "p3";
+const openArcade = async (seat = SEAT) => {
   await page.click(".center__hex");
   await page.waitForTimeout(250);
   await page.getByText("Pass the time").click();
-  await page.waitForSelector(".panel--arcade", { timeout: 5000 });
+  await page.waitForSelector(".seatpick", { timeout: 5000 });
+  await page.locator(`[aria-label="play in P${Number(seat.slice(1)) + 1}’s seat"]`)
+    .click({ force: true })
+    .catch(async () => {
+      await page.locator(".seatpick__seat").nth(Number(seat.slice(1))).click({ force: true });
+    });
+  await page.waitForSelector(".arct", { timeout: 5000 });
   await page.waitForTimeout(250);
 };
 
@@ -62,7 +71,7 @@ const clipped = async (sel) =>
       // Measure against the PANEL, which is what actually clips (overflow
       // hidden + rounded corners). Measuring against the scrolling body called
       // a button that hung off the panel edge "fine".
-      const body = el.closest(".panel");
+      const body = el.closest(".arct");
       const a = el.getBoundingClientRect();
       const b = body.getBoundingClientRect();
       // Rotation means screen-space top/bottom is not the panel's own axis, so
@@ -82,8 +91,7 @@ check(
   menuClip.join(", "),
 );
 
-const menuWidth = (await page.locator(".panel--arcade").boundingBox()).width;
-const turnName = await page.locator(".arc__turn-name").innerText();
+const turnName = await page.locator(".arct__who").innerText();
 check("the turn strip names the active player", /P1/.test(turnName), turnName);
 await page.screenshot({ path: "screenshots/arcade-menu.png" });
 
@@ -91,7 +99,7 @@ await page.screenshot({ path: "screenshots/arcade-menu.png" });
 // is decoration rather than a way to keep track.
 await page.evaluate(() => window.__store.getState().passTurn());
 await page.waitForTimeout(200);
-const afterPass = await page.locator(".arc__turn-name").innerText();
+const afterPass = await page.locator(".arct__who").innerText();
 check("the strip follows the turn while a game is open", /P2/.test(afterPass), afterPass);
 
 // ---- Mana Match ---------------------------------------------------------
@@ -115,15 +123,6 @@ check(
   `${start.filter((c) => c.up).length} showing`,
 );
 await page.screenshot({ path: "screenshots/arcade-match.png" });
-
-// The menu and the board are the same panel; it must not change width when
-// you pick a game (shrink-wrapping the grid made the board half as wide).
-const boardWidth = (await page.locator(".panel--arcade").boundingBox()).width;
-check(
-  "the panel keeps its width from the menu into a game",
-  Math.abs(boardWidth - menuWidth) < 2,
-  `menu ${Math.round(menuWidth)} vs board ${Math.round(boardWidth)}`,
-);
 
 const tap = async (i) => {
   await page.locator(".mcard").nth(i).click({ force: true });
@@ -206,7 +205,7 @@ check(
 
 // ---- Chant --------------------------------------------------------------
 console.log("chant");
-await page.click(".arc__back");
+await page.click(".arct__back");
 await page.waitForTimeout(200);
 await page.getByText("Chant", { exact: true }).click();
 await page.waitForSelector(".pad");
@@ -310,7 +309,7 @@ await page.screenshot({ path: "screenshots/arcade-chant-over.png" });
 
 // ---- Quick Draw ---------------------------------------------------------
 console.log("quick draw");
-await page.click(".arc__back");
+await page.click(".arct__back");
 await page.waitForTimeout(200);
 await page.getByText("Quick Draw").click();
 await page.waitForSelector(".draw");
@@ -351,59 +350,129 @@ check(
 );
 await page.screenshot({ path: "screenshots/arcade-draw-result.png" });
 
-// ---- facing another seat, and persistence -------------------------------
-console.log("seat rotation and persistence");
-const transform = () =>
-  page.$eval(".panel--arcade", (el) =>
-    getComputedStyle(el.parentElement).transform,
-  );
-const flat = await transform();
-await page.locator('[aria-label="turn to face another seat"]').click();
-await page.waitForTimeout(250);
-const turned = await transform();
-check("the panel can be turned to face another seat", flat !== turned, `${flat} -> ${turned}`);
-// A 90 degree turn must still fit the screen, or it is unusable from that seat.
-const box = await page.locator(".panel--arcade").boundingBox();
-const vp = page.viewportSize();
-check(
-  "it still fits the screen when turned",
-  box.x >= -1 && box.y >= -1 && box.width <= vp.width + 2 && box.height <= vp.height + 2,
-  `${Math.round(box.width)}x${Math.round(box.height)} at ${Math.round(box.x)},${Math.round(box.y)} in ${vp.width}x${vp.height}`,
-);
-await page.screenshot({ path: "screenshots/arcade-rotated.png" });
+// ---- the rest of the board is still a life tracker ---------------------
+// This is the whole point of the games living in one tile. A panel over the
+// middle of the board covered between a third and nearly all of every life
+// total and its backdrop ate every tap, so the player whose turn it actually
+// was could neither read the board nor use it.
+console.log("the board while someone is playing");
 
-// The same measurement again, turned: this is the facing the square layout
-// broke, so it is the one worth re-checking rather than assuming.
-await page.click(".arc__back");
-await page.waitForTimeout(300);
-const turnedClip = await clipped(".arc__pick");
+const boardState = () =>
+  page.evaluate((seat) => {
+    const arc = document.querySelector(".arct");
+    const a = arc.getBoundingClientRect();
+    const out = [];
+    for (const el of document.querySelectorAll(".tile__life")) {
+      const tile = el.closest(".tile");
+      const r = el.getBoundingClientRect();
+      const w = Math.max(0, Math.min(r.right, a.right) - Math.max(r.left, a.left));
+      const h = Math.max(0, Math.min(r.bottom, a.bottom) - Math.max(r.top, a.top));
+      // What is actually painted on top of the middle of the number: the
+      // overlay version passed a rectangle test while a backdrop sat over it.
+      const hit = document.elementFromPoint(
+        Math.round((r.left + r.right) / 2),
+        Math.round((r.top + r.bottom) / 2),
+      );
+      out.push({
+        seat: tile.querySelector(".tile__adj")?.getAttribute("aria-label") ?? "?",
+        covered: (w * h) / (r.width * r.height || 1),
+        ownTile: !!tile.querySelector(".arct"),
+        blocked: !!(hit && hit.closest(".arct")),
+      });
+    }
+    return out;
+  }, SEAT);
+
+const tiles = await boardState();
+const others = tiles.filter((t) => !t.ownTile);
 check(
-  "no game is cut off when the panel is turned",
-  turnedClip.length === 0 && (await page.locator(".arc__pick").count()) === 3,
-  turnedClip.join(", "),
+  "the games cover exactly one tile",
+  tiles.filter((t) => t.ownTile).length === 1 && others.length === 3,
+  `${tiles.filter((t) => t.ownTile).length} own, ${others.length} others`,
 );
-await page.getByText("Mana Match").click();
-await page.waitForTimeout(300);
-// Not just the cards: the button under them is what actually fell off the
-// edge, and a cards-only measurement called that layout fine.
-const chromeClip = await clipped(".arc__status, .bigbtn");
 check(
-  "the status and button are whole when turned",
-  chromeClip.length === 0 && (await page.locator(".bigbtn").count()) === 1,
-  chromeClip.join(", "),
+  "every other life total is completely unobstructed",
+  others.length === 3 && others.every((t) => t.covered === 0 && !t.blocked),
+  others.map((t) => `${Math.round(t.covered * 100)}%`).join(" "),
 );
-const cardClip = await clipped(".mcard");
-const cardCount = await page.locator(".mcard").count();
+
+// The tile clips its own children, so "nothing else is covered" is nearly
+// guaranteed by where this renders -- which makes the measurement itself the
+// thing to distrust. Put a known cover over the board, confirm it is seen,
+// take it away again. Without this the two checks above would read the same
+// whether they worked or not.
+const withCover = await page.evaluate(async () => {
+  const d = document.createElement("div");
+  d.id = "cover-control";
+  d.style.cssText =
+    "position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.62)";
+  document.body.appendChild(d);
+  await new Promise((r) => requestAnimationFrame(r));
+  const out = [];
+  for (const el of document.querySelectorAll(".tile__life")) {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      Math.round((r.left + r.right) / 2),
+      Math.round((r.top + r.bottom) / 2),
+    );
+    out.push(hit ? hit.id : "none");
+  }
+  d.remove();
+  return out;
+});
 check(
-  "the whole board is visible when turned",
-  cardClip.length === 0 && cardCount === 12,
-  `${cardClip.length} of ${cardCount} clipped`,
+  "the measurement can actually see something covering the board",
+  withCover.length === 4 && withCover.every((id) => id === "cover-control"),
+  withCover.join(","),
 );
-await page.screenshot({ path: "screenshots/arcade-rotated-match.png" });
+
+// Reading it is half of it; the active player has to be able to use it.
+const lifeOf = (i) =>
+  page.evaluate((n) => window.__store.getState().game.players[n].life, i);
+const beforeLife = await lifeOf(0);
+await page.locator('[aria-label="P1 increase life"]').click({ force: true });
+await page.waitForTimeout(500);
+const afterLife = await lifeOf(0);
+check(
+  "the active player can still change their life",
+  afterLife === beforeLife + 1,
+  `${beforeLife} -> ${afterLife}`,
+);
+check(
+  "and the games survive them doing it",
+  (await page.locator(".arct").count()) === 1,
+);
+
+// Passing the turn is the other thing that cannot wait for someone to finish
+// a game of pairs.
+const turnBefore = await page.evaluate(
+  () => window.__store.getState().game.turn.activePlayerId,
+);
+await page.click(".center__hex");
+await page.waitForTimeout(250);
+await page.getByText("Pass turn").click();
+await page.waitForTimeout(350);
+const turnAfter = await page.evaluate(
+  () => window.__store.getState().game.turn.activePlayerId,
+);
+check(
+  "the turn can still be passed from the centre menu",
+  turnAfter !== turnBefore,
+  `${turnBefore} -> ${turnAfter}`,
+);
+
+// And the seat playing sees its own turn arrive without leaving the game.
+await page.evaluate((seat) => {
+  window.__store.getState().setActivePlayer(seat);
+}, SEAT);
+await page.waitForTimeout(250);
+const yours = await page.locator(".arct__turn.is-yours").count();
+check("the playing seat is told when its own turn arrives", yours === 1);
+await page.screenshot({ path: "screenshots/arcade-in-tile.png" });
 
 // Walking out mid-run must not strand anything: closing during a countdown
 // and reopening should land back on the menu with nothing still ticking.
-await page.locator(".arc__back").click();
+await page.locator(".arct__back").click();
 await page.waitForTimeout(200);
 await page.getByText("Quick Draw").click();
 await page.locator(".draw").click({ force: true }); // arm, then walk away
@@ -412,7 +481,7 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(1200);
 check(
   "closing mid-round leaves no panel behind",
-  (await page.locator(".panel--arcade").count()) === 0,
+  (await page.locator(".arct").count()) === 0,
 );
 await openArcade();
 check(
@@ -430,20 +499,18 @@ await page.reload();
 await page.waitForSelector(".tile__life", { timeout: 20000 });
 const kept = await page.evaluate(() => ({
   bests: window.__store.getState().arcadeBests,
-  rot: window.__store.getState().settings.arcadeRotation,
 }));
 check(
   "records survive a reload",
   kept.bests.match === matchBest && kept.bests.chant === 3,
   JSON.stringify(kept.bests),
 );
-check("the chosen facing is remembered", kept.rot === 90, `${kept.rot}`);
 
 // The board underneath must be untouched by any of this.
 const life = await page.evaluate(() =>
   window.__store.getState().game.players.map((p) => p.life).join(","),
 );
-check("the game itself is untouched", life === "40,40,40,40", life);
+check("nothing but the one deliberate tap changed the game", life === "41,40,40,40", life);
 
 check("no console errors anywhere", errors.length === 0, errors.slice(0, 3).join(" | "));
 

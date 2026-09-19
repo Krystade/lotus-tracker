@@ -2269,94 +2269,113 @@ input[type="text"] {
 }
 
 /* ---------- pass-the-time games ---------- */
-/* Facing the near or far edge, this is an ordinary portrait panel. */
-/* An explicit width, not a percentage: the rotation wrapper has no width of
-   its own, so `100%` leaves the panel to shrink-wrap its contents and the
-   board came out half the width of the menu that opened it. */
-.panel--arcade {
-  width: min(440px, calc(100vw - 32px));
-  max-height: 88vh;
-}
-
-/* Turned a quarter, its width becomes on-screen height and vice versa, so it
-   has to be laid out landscape -- wide and short -- or it hangs off both ends
-   of the screen. Squeezing it into a square instead was worse: it clipped the
-   third game off the menu. */
-.panel--arcade.is-turned {
-  width: min(500px, 88dvh);
-  /* This becomes the on-screen WIDTH, so the screen's short side sets it,
-     minus the overlay padding. A fixed height, not a cap: with `auto` the
-     panel shrank to its contents, there was no free space for the board to
-     grow into, and the cards collapsed to the size of the letter on them. */
-  height: calc(100dvw - 36px);
-}
-
-.arc__headbtns {
+/* The games live inside one player's tile, not over the board. `inset: 0` of
+   the rotated content box means they cover that seat exactly, already facing
+   the right way, and every other tile stays readable and tappable. */
+.arct {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
   display: flex;
-  gap: 4px;
-  align-items: center;
+  flex-direction: column;
+  background: rgba(14, 14, 16, 0.97);
+  border-radius: 18px;
+  overflow: hidden;
+  color: #fff;
+  /* Tile text colour is chosen for the tile's look; inside here the ground is
+     the dark panel, so the inherited ink could be near-black on near-black. */
+  container-type: size;
 }
 
-.arc__back {
+.arct__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-weight: 800;
+  font-size: clamp(0.72rem, 5cqmin, 0.95rem);
+}
+
+.arct__title,
+.arct__back {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arct__back {
   background: transparent;
   border: none;
   color: inherit;
   font: inherit;
-  font-weight: 800;
   padding: 0;
 }
 
-/* Whose turn it is, kept on screen so a game is never a reason to miss it. */
-.arc__turn {
+.arct__x {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1rem;
+  padding: 2px 4px;
+  flex: none;
+}
+
+.arct__turn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--panel-2);
-  border-top: 1px solid #000;
-  font-size: 0.82rem;
+  gap: 6px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: clamp(0.62rem, 4cqmin, 0.8rem);
   color: #cfcfd2;
 }
 
-.arc__turn.is-expired {
+/* Your own turn arriving is the one thing worth interrupting a game for. */
+.arct__turn.is-yours {
+  background: #123d27;
+  color: #c6f5da;
+}
+
+.arct__turn.is-expired {
   background: #3a1220;
   color: #ffd7e2;
 }
 
-.arc__turn-dot {
-  width: 12px;
-  height: 12px;
+.arct__dot {
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex: none;
 }
 
-.arc__turn-name {
+.arct__who {
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.arc__turn-clock {
+.arct__clock {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
 }
 
-.panel__body--arcade {
-  gap: 12px;
-  /* Take the panel's spare height rather than hugging the content, so the
-     board below has something to grow into. */
+.arct__body {
   flex: 1;
-  /* Let the board shrink instead of pushing the button past the edge: a flex
-     child will not go below its content size without this. */
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px 8px;
+  overflow: auto;
 }
 
 .arc {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   flex: 1;
   min-height: 0;
 }
@@ -2364,7 +2383,7 @@ input[type="text"] {
 .arc__status {
   text-align: center;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: clamp(0.62rem, 4cqmin, 0.82rem);
   min-height: 1.3em;
 }
 
@@ -2374,100 +2393,30 @@ input[type="text"] {
 
 .arc__grid {
   display: grid;
-  gap: 8px;
+  gap: clamp(3px, 1.6cqmin, 8px);
+  min-height: 0;
 }
 
 .arc__grid--match {
   grid-template-columns: repeat(4, 1fr);
-}
-
-.arc__grid--pads,
-.arc__grid--match {
-  min-height: 0;
-}
-
-/* Short and wide: two rows of six rather than three of four. The rows take
-   what height is left rather than dictating it, so the button below always
-   has somewhere to be. */
-.is-turned .arc__grid--match {
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   flex: 1;
 }
 
-/* Height-driven squares: the row gives the height, the card takes its width
-   from that. Width-driven cards overflowed the short axis, and letting them
-   fill the row stretched them into pills. */
-.is-turned .mcard {
+/* Height-driven squares: the row gives the height and the card takes its
+   width from it, so a short tile shrinks the board instead of pushing the
+   button off the bottom. */
+.mcard {
   aspect-ratio: 1;
   height: 100%;
   width: auto;
   min-height: 0;
   justify-self: center;
-  font-size: 1.1rem;
-}
-
-.is-turned .bigbtn {
-  padding: 11px;
-  margin-top: 0;
-}
-
-.is-turned .arc__status {
-  font-size: 0.82rem;
-}
-
-/* Wide and short: all five in a row, like a mana cost. */
-.is-turned .arc__grid--pads {
-  grid-template-columns: repeat(5, 1fr);
-  align-items: center;
-}
-
-.is-turned .pad,
-.is-turned .pad:nth-child(4) {
-  grid-column: auto;
-}
-
-.is-turned .pad {
-  height: 100%;
-  width: auto;
-  justify-self: center;
-  max-height: 96px;
-}
-
-.is-turned .arc__menu {
-  flex-direction: row;
-}
-
-.is-turned .arc__pick {
-  flex: 1;
-  align-content: start;
-}
-
-.is-turned .draw {
-  min-height: 120px;
-}
-
-/* Five pads do not divide into a tidy grid: three then two, with the second
-   row centred, instead of two rows with a hole punched in the corner. */
-.arc__grid--pads {
-  grid-template-columns: repeat(6, 1fr);
-}
-
-.pad {
-  grid-column: span 2;
-}
-
-.pad:nth-child(4) {
-  grid-column: 2 / span 2;
-}
-
-.mcard {
-  aspect-ratio: 3 / 4;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid transparent;
   background: var(--row);
   color: #6f6f76;
-  font-size: 1.5rem;
+  font-size: clamp(0.8rem, 6cqmin, 1.5rem);
   font-weight: 800;
   transition:
     background 0.14s ease,
@@ -2485,16 +2434,33 @@ input[type="text"] {
   opacity: 1;
 }
 
+/* Five pads do not divide into a tidy grid: three then two, with the second
+   row centred, instead of two rows with a hole punched in the corner. */
+.arc__grid--pads {
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  flex: 1;
+}
+
 .pad {
+  grid-column: span 2;
   aspect-ratio: 1;
-  border-radius: 14px;
+  height: 100%;
+  width: auto;
+  min-height: 0;
+  justify-self: center;
+  border-radius: 12px;
   border: 3px solid transparent;
-  font-size: 1.3rem;
+  font-size: clamp(0.8rem, 6cqmin, 1.3rem);
   font-weight: 800;
   /* Dim, not dead: these are the only thing on screen, and washed-out pads
      read as a disabled panel rather than as a game waiting for a tap. */
   filter: brightness(0.78) saturate(0.9);
   transition: filter 0.1s ease;
+}
+
+.pad:nth-child(4) {
+  grid-column: 2 / span 2;
 }
 
 .pad:disabled {
@@ -2515,9 +2481,9 @@ input[type="text"] {
 
 .draw {
   flex: 1;
-  min-height: 200px;
+  min-height: 0;
   width: 100%;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 2px solid #2c2c31;
   background: var(--row);
   color: #fff;
@@ -2525,17 +2491,17 @@ input[type="text"] {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .draw__big {
-  font-size: 2.2rem;
+  font-size: clamp(1.1rem, 11cqmin, 2.2rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 .draw__sub {
-  font-size: 0.95rem;
+  font-size: clamp(0.62rem, 4.5cqmin, 0.95rem);
   color: var(--muted);
 }
 
@@ -2557,20 +2523,28 @@ input[type="text"] {
   border-color: var(--pink);
 }
 
+.arct .bigbtn {
+  padding: clamp(6px, 3cqmin, 14px);
+  margin-top: 0;
+  font-size: clamp(0.72rem, 5cqmin, 1.05rem);
+  border-radius: 10px;
+  flex: none;
+}
+
 .arc__menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: clamp(4px, 2cqmin, 8px);
 }
 
 .arc__pick {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: baseline;
-  gap: 2px 10px;
+  gap: 1px 8px;
   text-align: left;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: clamp(6px, 3cqmin, 14px) clamp(8px, 3.5cqmin, 16px);
+  border-radius: 12px;
   border: 2px solid transparent;
   background: var(--row);
   color: #fff;
@@ -2578,12 +2552,12 @@ input[type="text"] {
 
 .arc__pick-name {
   font-weight: 800;
-  font-size: 1.05rem;
+  font-size: clamp(0.76rem, 5.4cqmin, 1.05rem);
 }
 
 .arc__pick-blurb {
   grid-column: 1;
-  font-size: 0.85rem;
+  font-size: clamp(0.6rem, 4cqmin, 0.85rem);
   color: #cfcfd2;
 }
 
@@ -2592,12 +2566,111 @@ input[type="text"] {
   grid-row: 1 / span 2;
   align-self: center;
   text-align: right;
-  font-size: 0.78rem;
+  font-size: clamp(0.55rem, 3.6cqmin, 0.78rem);
   color: var(--muted);
 }
 
 .arc__best {
   text-align: center;
-  font-size: 0.82rem;
+  font-size: clamp(0.55rem, 3.6cqmin, 0.82rem);
   color: var(--muted);
+  flex: none;
+}
+
+/* A seat's tile is landscape as often as it is portrait -- side seats are
+   turned a quarter, so their content box is wide and short. `.arct` is a size
+   container, so the games can lay themselves out from the shape of the tile
+   they are in rather than from anything global. */
+@container (min-aspect-ratio: 1 / 1) {
+  .arc__menu {
+    flex-direction: row;
+  }
+
+  .arc__pick {
+    flex: 1;
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+
+  .arc__pick-best {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: left;
+  }
+
+  /* Two rows of six instead of three of four, and five pads in a row like a
+     mana cost. */
+  .arc__grid--match {
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .arc__grid--pads {
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .pad,
+  .pad:nth-child(4) {
+    grid-column: auto;
+  }
+
+  /* A seat's tile is short whatever the pod size, so square cards come out
+     too small to hit. Filling the cell keeps the tap target honest and still
+     reads as a card at these proportions. */
+  .mcard,
+  .pad {
+    aspect-ratio: auto;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* In a short tile the one-line description is the first thing to go: three
+   games still have to be legible and tappable, their blurbs do not. */
+@container (max-height: 210px) {
+  .arc__pick-blurb {
+    display: none;
+  }
+
+  /* The record is already on the menu card; inside a short tile that line is
+     worth more as board. */
+  .arc__best {
+    display: none;
+  }
+
+  .arct__head {
+    padding: 3px 8px 1px;
+  }
+
+  .arct__turn {
+    padding: 1px 8px;
+  }
+}
+
+/* ---------- which seat is playing ---------- */
+.seatpick {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.seatpick__seat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.seatpick__tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.72;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

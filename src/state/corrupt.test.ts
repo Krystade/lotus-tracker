@@ -99,16 +99,3 @@ describe("sanitizeBests", () => {
     ).toEqual({ match: 9 });
   });
 });
-
-describe("arcade rotation", () => {
-  it.each([0, 90, 180, 270])("accepts the quarter turn %s", (r) => {
-    expect(sanitizeSettings({ arcadeRotation: r }).arcadeRotation).toBe(r);
-  });
-
-  it.each([45, -90, 360, "90", null, NaN])(
-    "falls back to 0 for %s, which no control could straighten",
-    (r) => {
-      expect(sanitizeSettings({ arcadeRotation: r }).arcadeRotation).toBe(0);
-    },
-  );
-});

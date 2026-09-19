@@ -10,7 +10,7 @@ import { NewGameScreen } from "./components/NewGameScreen";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { LayoutPicker } from "./components/LayoutPicker";
 import { DicePanel } from "./components/DicePanel";
-import { ArcadePanel } from "./components/ArcadePanel";
+import { ArcadeSeatPicker } from "./components/ArcadeSeatPicker";
 import { RandomFirstOverlay } from "./components/RandomFirstOverlay";
 
 type Overlay =
@@ -49,6 +49,10 @@ export default function App() {
 
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // Which seat has the pass-the-time games open. They live inside that
+  // player's own tile, so the rest of the board stays readable and usable for
+  // whoever's turn it actually is.
+  const [arcadeSeat, setArcadeSeat] = useState<string | null>(null);
 
   // Look animation is frozen by the setting, and also whenever the tab is
   // hidden — CSS animations keep running when a page is backgrounded, unlike
@@ -72,6 +76,7 @@ export default function App() {
       if (e.key === "Escape") {
         setDetailId(null);
         setOverlay(null);
+        setArcadeSeat(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -88,7 +93,11 @@ export default function App() {
         } as CSSProperties
       }
     >
-      <Board onOpenDetail={setDetailId} />
+      <Board
+        onOpenDetail={setDetailId}
+        arcadeSeat={arcadeSeat}
+        onCloseArcade={() => setArcadeSeat(null)}
+      />
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}
         onSettings={() => setOverlay("settings")}
@@ -110,7 +119,13 @@ export default function App() {
       {overlay === "layout" && <LayoutPicker onClose={() => setOverlay(null)} />}
       {overlay === "dice" && <DicePanel onClose={() => setOverlay(null)} />}
       {overlay === "arcade" && (
-        <ArcadePanel onClose={() => setOverlay(null)} />
+        <ArcadeSeatPicker
+          onClose={() => setOverlay(null)}
+          onPick={(id) => {
+            setArcadeSeat(id);
+            setOverlay(null);
+          }}
+        />
       )}
       {overlay === "random" && (
         <RandomFirstOverlay onClose={() => setOverlay(null)} />
