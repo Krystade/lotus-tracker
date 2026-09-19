@@ -513,6 +513,58 @@ await page
   .check({ force: true });
 await esc();
 
+// --- pass-the-time games ---------------------------------------------
+// Driven entirely through the UI, and the score read back out of the saved
+// state, because these are the only two things production exposes.
+phase = "arcade"; console.log("pass the time");
+await openMenu();
+await page.getByText("Pass the time").click();
+await page.waitForSelector(".panel--arcade", { timeout: 10000 });
+check("all three games are listed", (await page.locator(".arc__pick").count()) === 3);
+check(
+  "whose turn it is stays visible over the games",
+  (await page.locator(".arc__turn-name").count()) === 1,
+  await page.locator(".arc__turn-name").innerText(),
+);
+
+// Quick Draw is the one that can be played to a score in two taps.
+await page.getByText("Quick Draw").click();
+await page.waitForSelector(".draw");
+await page.locator(".draw").click({ force: true });
+await page.waitForSelector(".draw--go", { timeout: 12000 });
+await page.locator(".draw").click({ force: true });
+await page.waitForTimeout(300);
+const drawn = await page.locator(".draw__big").innerText();
+check("a reaction is timed", /^\d+ ms$/.test(drawn), drawn);
+
+const savedBest = await page.evaluate(() => {
+  const raw = localStorage.getItem("lotus-tracker");
+  return raw ? JSON.parse(raw).state.arcadeBests : null;
+});
+check(
+  "the score is saved, not just displayed",
+  savedBest && typeof savedBest.draw === "number" && savedBest.draw < 12000,
+  JSON.stringify(savedBest),
+);
+
+// Mana Match only needs to prove it deals a board nothing can read through.
+await page.click(".arc__back");
+await page.waitForTimeout(200);
+await page.getByText("Mana Match").click();
+await page.waitForSelector(".mcard");
+const dealt = await page.$$eval(".mcard", (els) => ({
+  n: els.length,
+  hidden: els.every((e) => e.getAttribute("aria-label") === "face down card"),
+}));
+check(
+  "a full board is dealt face down",
+  dealt.n === 12 && dealt.hidden,
+  `${dealt.n} cards`,
+);
+await esc();
+await page.waitForTimeout(200);
+check("the games close again", (await page.locator(".panel--arcade").count()) === 0);
+
 // --- responsive ------------------------------------------------------
 phase = "responsive"; console.log("responsive");
 for (const [name, w, h] of [
