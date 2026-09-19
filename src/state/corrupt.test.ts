@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeCounters, sanitizeSettings } from "./sanitize";
+import { sanitizeBests, sanitizeCounters, sanitizeSettings } from "./sanitize";
 import { DEFAULT_SETTINGS } from "./types";
 
 // A persisted value that is MISSING falls back to a default already. These
@@ -75,4 +75,40 @@ describe("sanitizeSettings", () => {
   it("keeps good settings untouched", () => {
     expect(sanitizeSettings(DEFAULT_SETTINGS)).toEqual(DEFAULT_SETTINGS);
   });
+});
+
+describe("sanitizeBests", () => {
+  it("keeps finite numbers", () => {
+    expect(sanitizeBests({ match: 9, chant: 4 })).toEqual({ match: 9, chant: 4 });
+  });
+
+  it.each([null, undefined, 7, "x", [1, 2]])("returns {} for %s", (v) => {
+    expect(sanitizeBests(v)).toEqual({});
+  });
+
+  it("drops entries that are not finite numbers, keeping the rest", () => {
+    expect(
+      sanitizeBests({
+        match: 9,
+        chant: "12",
+        draw: NaN,
+        a: Infinity,
+        b: null,
+        c: { v: 1 },
+      }),
+    ).toEqual({ match: 9 });
+  });
+});
+
+describe("arcade rotation", () => {
+  it.each([0, 90, 180, 270])("accepts the quarter turn %s", (r) => {
+    expect(sanitizeSettings({ arcadeRotation: r }).arcadeRotation).toBe(r);
+  });
+
+  it.each([45, -90, 360, "90", null, NaN])(
+    "falls back to 0 for %s, which no control could straighten",
+    (r) => {
+      expect(sanitizeSettings({ arcadeRotation: r }).arcadeRotation).toBe(0);
+    },
+  );
 });

@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
   DEFAULT_SETTINGS,
   COMMANDER_TAX_STEP,
+  type ArcadeBests,
   type CounterKey,
   type CounterSet,
   type GameState,
@@ -12,7 +13,7 @@ import {
   type PlayerProfile,
   type Settings,
 } from "./types";
-import { sanitizeCounters, sanitizeSettings } from "./sanitize";
+import { sanitizeBests, sanitizeCounters, sanitizeSettings } from "./sanitize";
 import {
   applyLifeDelta,
   clampCounter,
@@ -25,6 +26,7 @@ import { clockwiseSeatOrder } from "../layout/order";
 import { defaultLayoutFor } from "../layout/presets";
 import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
+import { isBetter } from "../game/arcade/bests";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
 // failed write never breaks the in-memory game (which is the source of truth).
@@ -138,6 +140,8 @@ export interface StoreState {
   // lifecycle
   profiles: PlayerProfile[];
   setups: GameSetup[];
+  /** Pass-the-time game records; survives new games, cleared only with storage. */
+  arcadeBests: ArcadeBests;
 
   newGame: (opts: {
     playerCount: number;
@@ -194,6 +198,9 @@ export interface StoreState {
 
   // settings
   updateSettings: (patch: Partial<Settings>) => void;
+
+  // pass-the-time games
+  recordArcadeScore: (gameId: string, value: number) => void;
 }
 
 function updatePlayer(
@@ -212,6 +219,7 @@ export const useStore = create<StoreState>()(
       customLayouts: [],
       profiles: [],
       setups: [],
+      arcadeBests: {},
 
       newGame: ({ playerCount, startingLife, layout, profileIds }) =>
         set((s) => {
@@ -656,6 +664,15 @@ export const useStore = create<StoreState>()(
 
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
+
+      // Which way is "better" belongs to the game, not to the caller, so a
+      // losing score can be handed over without the UI having to compare.
+      recordArcadeScore: (gameId, value) =>
+        set((s) =>
+          isBetter(gameId, value, s.arcadeBests[gameId])
+            ? { arcadeBests: { ...s.arcadeBests, [gameId]: value } }
+            : {},
+        ),
     }),
     {
       name: "lotus-tracker",
@@ -711,6 +728,7 @@ export const useStore = create<StoreState>()(
           customLayouts: p.customLayouts ?? current.customLayouts,
           profiles: Array.isArray(p.profiles) ? p.profiles : current.profiles,
           setups: Array.isArray(p.setups) ? p.setups : current.setups,
+          arcadeBests: sanitizeBests(p.arcadeBests),
           game,
         };
       },

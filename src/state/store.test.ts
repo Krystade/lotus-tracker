@@ -315,3 +315,47 @@ describe("player look", () => {
     expect(s().profiles.find((x) => x.id === mine.id)?.look).toBe("gold");
   });
 });
+
+describe("pass-the-time records", () => {
+  beforeEach(() => {
+    useStore.setState({ arcadeBests: {} });
+  });
+
+  it("stores the first score of a game", () => {
+    s().recordArcadeScore("match", 9);
+    expect(s().arcadeBests.match).toBe(9);
+  });
+
+  it("keeps the fewest tries, not the latest", () => {
+    s().recordArcadeScore("match", 9);
+    s().recordArcadeScore("match", 14);
+    expect(s().arcadeBests.match).toBe(9);
+    s().recordArcadeScore("match", 7);
+    expect(s().arcadeBests.match).toBe(7);
+  });
+
+  it("keeps the most rounds where higher is better", () => {
+    s().recordArcadeScore("chant", 5);
+    s().recordArcadeScore("chant", 3);
+    expect(s().arcadeBests.chant).toBe(5);
+    s().recordArcadeScore("chant", 8);
+    expect(s().arcadeBests.chant).toBe(8);
+  });
+
+  it("keeps records apart per game", () => {
+    s().recordArcadeScore("match", 9);
+    s().recordArcadeScore("draw", 240);
+    expect(s().arcadeBests).toEqual({ match: 9, draw: 240 });
+  });
+
+  it("ignores a score for a game that does not exist", () => {
+    s().recordArcadeScore("nonsense", 1);
+    expect(s().arcadeBests).toEqual({});
+  });
+
+  it("survives a new game — records are not part of the match", () => {
+    s().recordArcadeScore("match", 9);
+    s().newGame({ playerCount: 4, startingLife: 40 });
+    expect(s().arcadeBests.match).toBe(9);
+  });
+});

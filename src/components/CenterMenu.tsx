@@ -7,6 +7,7 @@ interface Props {
   onSettings: () => void;
   onLayouts: () => void;
   onDice: () => void;
+  onArcade: () => void;
   onRandomFirst: () => void;
 }
 
@@ -16,6 +17,7 @@ export function CenterMenu({
   onSettings,
   onLayouts,
   onDice,
+  onArcade,
   onRandomFirst,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -88,6 +90,9 @@ export function CenterMenu({
               </button>
               <button className="sheet__row" onClick={act(onDice)}>
                 ⬡ Dice roller
+              </button>
+              <button className="sheet__row" onClick={act(onArcade)}>
+                ⚄ Pass the time
               </button>
             </div>
             <div className="sheet__group">

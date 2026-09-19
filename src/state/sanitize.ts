@@ -1,5 +1,11 @@
 import { DEFAULT_SETTINGS } from "./types";
-import type { CounterSet, CustomCounter, Settings } from "./types";
+import type {
+  ArcadeBests,
+  Rotation,
+  CounterSet,
+  CustomCounter,
+  Settings,
+} from "./types";
 
 /**
  * Repairs persisted state whose values are the WRONG TYPE.
@@ -64,6 +70,13 @@ export function sanitizeSettings(v: unknown, defaults?: Settings): Settings {
     turnTimerScale: num(s.turnTimerScale, d.turnTimerScale),
     lookSpeed: num(s.lookSpeed, d.lookSpeed),
     effectStrength: num(s.effectStrength, d.effectStrength),
+    // A rotation that is not one of the four quarter turns would leave a panel
+    // askew with no control that can straighten it.
+    arcadeRotation: ([0, 90, 180, 270] as const).includes(
+      s.arcadeRotation as 0 | 90 | 180 | 270,
+    )
+      ? (s.arcadeRotation as Rotation)
+      : d.arcadeRotation,
     soundOn: bool(s.soundOn, d.soundOn),
     vibrateOn: bool(s.vibrateOn, d.vibrateOn),
     keepAwake: bool(s.keepAwake, d.keepAwake),
@@ -71,4 +84,18 @@ export function sanitizeSettings(v: unknown, defaults?: Settings): Settings {
     effectsOn: bool(s.effectsOn, d.effectsOn),
     animateLooks: bool(s.animateLooks, d.animateLooks),
   };
+}
+
+/**
+ * Best scores arrive as an open-ended map, so there is no shape to fall back
+ * on -- only a filter. Anything that is not a finite number is dropped rather
+ * than defaulted, because an invented "best" is worse than no record.
+ */
+export function sanitizeBests(v: unknown): ArcadeBests {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: ArcadeBests = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof raw === "number" && Number.isFinite(raw)) out[k] = raw;
+  }
+  return out;
 }

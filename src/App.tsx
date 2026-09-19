@@ -10,9 +10,17 @@ import { NewGameScreen } from "./components/NewGameScreen";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { LayoutPicker } from "./components/LayoutPicker";
 import { DicePanel } from "./components/DicePanel";
+import { ArcadePanel } from "./components/ArcadePanel";
 import { RandomFirstOverlay } from "./components/RandomFirstOverlay";
 
-type Overlay = null | "newgame" | "settings" | "layout" | "dice" | "random";
+type Overlay =
+  | null
+  | "newgame"
+  | "settings"
+  | "layout"
+  | "dice"
+  | "random"
+  | "arcade";
 
 export default function App() {
   useTicker();
@@ -86,6 +94,7 @@ export default function App() {
         onSettings={() => setOverlay("settings")}
         onLayouts={() => setOverlay("layout")}
         onDice={() => setOverlay("dice")}
+        onArcade={() => setOverlay("arcade")}
         onRandomFirst={() => setOverlay("random")}
       />
 
@@ -100,6 +109,9 @@ export default function App() {
       )}
       {overlay === "layout" && <LayoutPicker onClose={() => setOverlay(null)} />}
       {overlay === "dice" && <DicePanel onClose={() => setOverlay(null)} />}
+      {overlay === "arcade" && (
+        <ArcadePanel onClose={() => setOverlay(null)} />
+      )}
       {overlay === "random" && (
         <RandomFirstOverlay onClose={() => setOverlay(null)} />
       )}

@@ -2267,3 +2267,337 @@ input[type="text"] {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ---------- pass-the-time games ---------- */
+/* Facing the near or far edge, this is an ordinary portrait panel. */
+/* An explicit width, not a percentage: the rotation wrapper has no width of
+   its own, so `100%` leaves the panel to shrink-wrap its contents and the
+   board came out half the width of the menu that opened it. */
+.panel--arcade {
+  width: min(440px, calc(100vw - 32px));
+  max-height: 88vh;
+}
+
+/* Turned a quarter, its width becomes on-screen height and vice versa, so it
+   has to be laid out landscape -- wide and short -- or it hangs off both ends
+   of the screen. Squeezing it into a square instead was worse: it clipped the
+   third game off the menu. */
+.panel--arcade.is-turned {
+  width: min(500px, 88dvh);
+  /* This becomes the on-screen WIDTH, so the screen's short side sets it,
+     minus the overlay padding. A fixed height, not a cap: with `auto` the
+     panel shrank to its contents, there was no free space for the board to
+     grow into, and the cards collapsed to the size of the letter on them. */
+  height: calc(100dvw - 36px);
+}
+
+.arc__headbtns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.arc__back {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  padding: 0;
+}
+
+/* Whose turn it is, kept on screen so a game is never a reason to miss it. */
+.arc__turn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--panel-2);
+  border-top: 1px solid #000;
+  font-size: 0.82rem;
+  color: #cfcfd2;
+}
+
+.arc__turn.is-expired {
+  background: #3a1220;
+  color: #ffd7e2;
+}
+
+.arc__turn-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.arc__turn-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arc__turn-clock {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.panel__body--arcade {
+  gap: 12px;
+  /* Take the panel's spare height rather than hugging the content, so the
+     board below has something to grow into. */
+  flex: 1;
+  /* Let the board shrink instead of pushing the button past the edge: a flex
+     child will not go below its content size without this. */
+  min-height: 0;
+}
+
+.arc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.arc__status {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  min-height: 1.3em;
+}
+
+.arc__status strong {
+  color: #fff;
+}
+
+.arc__grid {
+  display: grid;
+  gap: 8px;
+}
+
+.arc__grid--match {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.arc__grid--pads,
+.arc__grid--match {
+  min-height: 0;
+}
+
+/* Short and wide: two rows of six rather than three of four. The rows take
+   what height is left rather than dictating it, so the button below always
+   has somewhere to be. */
+.is-turned .arc__grid--match {
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  flex: 1;
+}
+
+/* Height-driven squares: the row gives the height, the card takes its width
+   from that. Width-driven cards overflowed the short axis, and letting them
+   fill the row stretched them into pills. */
+.is-turned .mcard {
+  aspect-ratio: 1;
+  height: 100%;
+  width: auto;
+  min-height: 0;
+  justify-self: center;
+  font-size: 1.1rem;
+}
+
+.is-turned .bigbtn {
+  padding: 11px;
+  margin-top: 0;
+}
+
+.is-turned .arc__status {
+  font-size: 0.82rem;
+}
+
+/* Wide and short: all five in a row, like a mana cost. */
+.is-turned .arc__grid--pads {
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+}
+
+.is-turned .pad,
+.is-turned .pad:nth-child(4) {
+  grid-column: auto;
+}
+
+.is-turned .pad {
+  height: 100%;
+  width: auto;
+  justify-self: center;
+  max-height: 96px;
+}
+
+.is-turned .arc__menu {
+  flex-direction: row;
+}
+
+.is-turned .arc__pick {
+  flex: 1;
+  align-content: start;
+}
+
+.is-turned .draw {
+  min-height: 120px;
+}
+
+/* Five pads do not divide into a tidy grid: three then two, with the second
+   row centred, instead of two rows with a hole punched in the corner. */
+.arc__grid--pads {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.pad {
+  grid-column: span 2;
+}
+
+.pad:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+
+.mcard {
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: var(--row);
+  color: #6f6f76;
+  font-size: 1.5rem;
+  font-weight: 800;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.mcard.is-matched {
+  /* Won cards stop competing for attention without disappearing. */
+  opacity: 0.55;
+}
+
+/* Except at the end, when every card is matched: dimming the whole board is
+   a strange way to say "you won". */
+.arc__grid--match.is-done .mcard.is-matched {
+  opacity: 1;
+}
+
+.pad {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 3px solid transparent;
+  font-size: 1.3rem;
+  font-weight: 800;
+  /* Dim, not dead: these are the only thing on screen, and washed-out pads
+     read as a disabled panel rather than as a game waiting for a tap. */
+  filter: brightness(0.78) saturate(0.9);
+  transition: filter 0.1s ease;
+}
+
+.pad:disabled {
+  /* Dimmed by the filter already; the default disabled look would flatten
+     the colours that the game is entirely about. */
+  opacity: 1;
+}
+
+.pad.is-lit {
+  filter: brightness(1.45) saturate(1.1);
+  border-color: #fff;
+}
+
+.pad.is-wrong {
+  border-color: var(--pink);
+  filter: brightness(1);
+}
+
+.draw {
+  flex: 1;
+  min-height: 200px;
+  width: 100%;
+  border-radius: 16px;
+  border: 2px solid #2c2c31;
+  background: var(--row);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.draw__big {
+  font-size: 2.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.draw__sub {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.draw--waiting {
+  background: #2a1a1e;
+}
+
+.draw--go {
+  background: #0c8f4c;
+  border-color: #17d675;
+}
+
+.draw--go .draw__sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.draw--early {
+  background: #3a1220;
+  border-color: var(--pink);
+}
+
+.arc__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arc__pick {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 10px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--row);
+  color: #fff;
+}
+
+.arc__pick-name {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.arc__pick-blurb {
+  grid-column: 1;
+  font-size: 0.85rem;
+  color: #cfcfd2;
+}
+
+.arc__pick-best {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.arc__best {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+}

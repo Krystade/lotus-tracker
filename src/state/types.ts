@@ -91,6 +91,9 @@ export interface Settings {
   lookSpeed: number;
   /** Multiplier on how much of the tile the damage/heal wash covers. */
   effectStrength: number;
+  /** Which way the pass-the-time games face, so one seat is not stuck upside
+   *  down on a tracker that sits in the middle of the table. */
+  arcadeRotation: Rotation;
 }
 
 export interface TurnState {
@@ -141,4 +144,8 @@ export const DEFAULT_SETTINGS: Settings = {
   animateLooks: true,
   lookSpeed: 1,
   effectStrength: 1,
+  arcadeRotation: 0,
 };
+
+/** Best score per pass-the-time game, keyed by game id. Device-local. */
+export type ArcadeBests = Record<string, number>;
