@@ -2287,64 +2287,92 @@ input[type="text"] {
   container-type: size;
 }
 
-.arct__head {
+/* Everything that must survive a game in progress, in one row: the way out,
+   this player's own life, and whose turn it is. It was a bare corner glyph
+   and no life at all, which made a tile stop being a life counter the moment
+   its owner got bored. */
+.arct__bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 6px 8px 4px;
-  font-weight: 800;
-  font-size: clamp(0.72rem, 5cqmin, 0.95rem);
+  gap: clamp(4px, 2cqmin, 10px);
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: clamp(0.6rem, 4cqmin, 0.8rem);
+  flex: none;
 }
 
-.arct__title,
+/* Your own turn arriving is the one thing worth interrupting a game for. */
+.arct__bar.is-yours {
+  background: #123d27;
+}
+
+.arct__bar.is-expired {
+  background: #3a1220;
+}
+
 .arct__back {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: none;
+  min-height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-weight: 800;
+  font-size: 0.95em;
   white-space: nowrap;
 }
 
-.arct__back {
-  background: transparent;
-  border: none;
-  color: inherit;
-  font: inherit;
-  padding: 0;
+/* The tile's own +/- are underneath the games, so life lives here while one
+   is open. Same hit-area rules as any other control. */
+.arct__life {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
 }
 
-.arct__x {
-  background: transparent;
+.arct__life button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
   border: none;
-  color: inherit;
-  font-size: 1rem;
-  padding: 2px 4px;
-  flex: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1.15em;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.arct__lifenum {
+  min-width: 2.2em;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.15em;
+  font-variant-numeric: tabular-nums;
 }
 
 .arct__turn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.07);
-  font-size: clamp(0.62rem, 4cqmin, 0.8rem);
+  gap: 4px;
+  min-width: 0;
+  margin-left: auto;
   color: #cfcfd2;
 }
 
-/* Your own turn arriving is the one thing worth interrupting a game for. */
-.arct__turn.is-yours {
-  background: #123d27;
+.arct__bar.is-yours .arct__turn {
   color: #c6f5da;
 }
 
-.arct__turn.is-expired {
-  background: #3a1220;
+.arct__bar.is-expired .arct__turn {
   color: #ffd7e2;
 }
 
 .arct__dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex: none;
 }
@@ -2357,9 +2385,24 @@ input[type="text"] {
 }
 
 .arct__clock {
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+}
+
+/* Labelled, not a lone glyph, and first in the bar so the board's centre
+   furniture cannot sit on top of it: "there's no way to exit the game" was
+   the first thing said about it. */
+.arct__close {
+  flex: none;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95em;
+  white-space: nowrap;
 }
 
 .arct__body {
@@ -2639,12 +2682,8 @@ input[type="text"] {
     display: none;
   }
 
-  .arct__head {
-    padding: 3px 8px 1px;
-  }
-
-  .arct__turn {
-    padding: 1px 8px;
+  .arct__bar {
+    padding: 2px 5px;
   }
 }
 

@@ -426,6 +426,63 @@ check(
   withCover.join(","),
 );
 
+// The two things the panel covers that its owner still needs: their own life,
+// and a way out. Both were missing on the first in-tile build -- the life not
+// at all, and the close glyph sat under the centre hex and game clock, which
+// every tile's inner corner runs into because tiles face outward.
+const barLife = () => page.locator(".arct__lifenum").innerText();
+const storedLife = () =>
+  page.evaluate((seat) => {
+    const st = window.__store.getState();
+    return String(st.game.players.find((p) => p.id === seat).life);
+  }, SEAT);
+check(
+  "the player can still see their own life",
+  (await barLife()) === (await storedLife()),
+  `${await barLife()} vs ${await storedLife()}`,
+);
+
+await page.locator('[aria-label="decrease your life"]').click({ force: true });
+await page.waitForTimeout(600);
+check(
+  "and change it without leaving the game",
+  (await barLife()) === (await storedLife()) && (await barLife()) === "39",
+  await barLife(),
+);
+await page.locator('[aria-label="increase your life"]').click({ force: true });
+await page.waitForTimeout(600);
+check("both directions work", (await barLife()) === "40", await barLife());
+
+// Hittable, not merely present: the first one was drawn underneath the board's
+// centre furniture, so tapping it opened the game clock instead.
+const closeHit = await page.evaluate(() => {
+  const btn = document.querySelector(".arct__close");
+  const r = btn.getBoundingClientRect();
+  const pts = [
+    [r.left + r.width / 2, r.top + r.height / 2],
+    [r.left + 4, r.top + 4],
+    [r.right - 4, r.bottom - 4],
+  ];
+  return pts.map((p) => {
+    const hit = document.elementFromPoint(Math.round(p[0]), Math.round(p[1]));
+    return hit && hit.closest(".arct__close") ? "ok" : (hit?.className ?? "none");
+  });
+});
+check(
+  "nothing is drawn on top of the way out",
+  closeHit.every((h) => h === "ok"),
+  closeHit.join(" | "),
+);
+
+// And it has to be big enough to hit on a phone.
+const closeBox = await page.locator(".arct__close").boundingBox();
+check(
+  "the way out is a real target",
+  Math.min(closeBox.width, closeBox.height) >= 28 &&
+    closeBox.width * closeBox.height >= 1200,
+  `${Math.round(closeBox.width)}x${Math.round(closeBox.height)}`,
+);
+
 // Reading it is half of it; the active player has to be able to use it.
 const lifeOf = (i) =>
   page.evaluate((n) => window.__store.getState().game.players[n].life, i);
@@ -466,7 +523,7 @@ await page.evaluate((seat) => {
   window.__store.getState().setActivePlayer(seat);
 }, SEAT);
 await page.waitForTimeout(250);
-const yours = await page.locator(".arct__turn.is-yours").count();
+const yours = await page.locator(".arct__bar.is-yours").count();
 check("the playing seat is told when its own turn arrives", yours === 1);
 await page.screenshot({ path: "screenshots/arcade-in-tile.png" });
 
@@ -481,6 +538,17 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(1200);
 check(
   "closing mid-round leaves no panel behind",
+  (await page.locator(".arct").count()) === 0,
+);
+
+// The labelled button, not just the Escape key -- nobody at a table has one.
+await openArcade();
+await page.getByText("Mana Match").click();
+await page.waitForSelector(".mcard");
+await page.locator(".arct__close").click();
+await page.waitForTimeout(300);
+check(
+  "the Close button closes it from inside a game",
   (await page.locator(".arct").count()) === 0,
 );
 await openArcade();

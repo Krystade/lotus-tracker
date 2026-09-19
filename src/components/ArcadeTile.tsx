@@ -33,11 +33,13 @@ export function ArcadeTile({
   const record = useStore((s) => s.recordArcadeScore);
 
   const players = useStore((s) => s.game.players);
+  const adjustLife = useStore((s) => s.adjustLife);
   const activeId = useStore((s) => s.game.turn.activePlayerId);
   const remainingSec = useStore((s) => s.game.turn.remainingSec);
   const expired = useStore((s) => s.game.turn.expired);
   const timerOn = useStore((s) => s.settings.turnTimerEnabled);
   const active = players.find((p) => p.id === activeId);
+  const me = players.find((p) => p.id === playerId);
   const yourTurn = activeId === playerId;
 
   const game = gameId ? gameById(gameId) : undefined;
@@ -51,40 +53,60 @@ export function ArcadeTile({
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
     >
-      <div className="arct__head">
-        {game ? (
+      {/* One bar, everything that must never be hidden by a game: the way
+          out, this player's own life (the tile it covers is their life
+          counter -- taking that away to play noughts and crosses is not a
+          trade anyone asked for), and whose turn it is. */}
+      <div className={`arct__bar${expired ? " is-expired" : ""}${
+        yourTurn ? " is-yours" : ""
+      }`}>
+        {/* First, not last. Every tile is rotated to face its player, so the
+            board's centre is always "up" from where they sit -- which puts the
+            centre hex and the game clock over this bar's far end. A close
+            control there is half covered and hard to hit, which is exactly
+            how it arrived: no visible way out of a game. */}
+        <button className="arct__close" onClick={onClose}>
+          ✕ Close
+        </button>
+
+        {game && (
           <button
             className="arct__back"
             onClick={() => setGameId(null)}
-            aria-label="back to games"
+            aria-label="back to the game list"
           >
-            ‹ {game.name}
+            ‹ Games
           </button>
-        ) : (
-          <span className="arct__title">Pass the time</span>
         )}
-        <button className="arct__x" onClick={onClose} aria-label="close games">
-          ✕
-        </button>
-      </div>
 
-      {/* Whose turn it is, on the panel as well as on the board behind it --
-          the point is to not lose track while playing. */}
-      {active && (
-        <div
-          className={`arct__turn${expired ? " is-expired" : ""}${
-            yourTurn ? " is-yours" : ""
-          }`}
-        >
-          <span className="arct__dot" style={{ background: active.color }} />
-          <span className="arct__who">
-            {yourTurn ? "Your turn" : `${active.name}’s turn`}
-          </span>
-          {timerOn && (
-            <span className="arct__clock">{formatClock(remainingSec)}</span>
-          )}
+        <div className="arct__life">
+          <button
+            onClick={() => adjustLife(playerId, -1)}
+            aria-label="decrease your life"
+          >
+            –
+          </button>
+          <span className="arct__lifenum">{me?.life ?? 0}</span>
+          <button
+            onClick={() => adjustLife(playerId, 1)}
+            aria-label="increase your life"
+          >
+            +
+          </button>
         </div>
-      )}
+
+        {active && (
+          <span className="arct__turn">
+            <span className="arct__dot" style={{ background: active.color }} />
+            <span className="arct__who">
+              {yourTurn ? "Your turn" : active.name}
+            </span>
+            {timerOn && (
+              <span className="arct__clock">{formatClock(remainingSec)}</span>
+            )}
+          </span>
+        )}
+      </div>
 
       <div className="arct__body">
         {!game && (
