@@ -680,6 +680,18 @@ input {
   white-space: nowrap;
 }
 
+/* Same weight as the other whole-row actions in the panel. */
+.panel__games {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: 2px solid #333;
+  background: transparent;
+  color: #fff;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
 .panel__elim {
   width: 100%;
   padding: 12px;
@@ -2274,7 +2286,10 @@ input[type="text"] {
    the right way, and every other tile stays readable and tappable. */
 .arct {
   position: absolute;
-  inset: 0;
+  /* Inset, not flush: on the tiles that touch the edge of the screen a flush
+     panel puts its controls right against the phone's own status bar, which
+     is where the close button ended up crowding the clock and battery. */
+  inset: 10px;
   z-index: 6;
   display: flex;
   flex-direction: column;
@@ -2294,8 +2309,9 @@ input[type="text"] {
 .arct__bar {
   display: flex;
   align-items: center;
-  gap: clamp(4px, 2cqmin, 10px);
-  padding: 4px 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
   background: rgba(255, 255, 255, 0.07);
   font-size: clamp(0.6rem, 4cqmin, 0.8rem);
   flex: none;
@@ -2312,15 +2328,16 @@ input[type="text"] {
 
 .arct__back {
   flex: none;
-  min-height: 30px;
-  padding: 0 8px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
   color: inherit;
   font-weight: 800;
-  font-size: 0.95em;
-  white-space: nowrap;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 /* The tile's own +/- are underneath the games, so life lives here while one
@@ -2328,28 +2345,31 @@ input[type="text"] {
 .arct__life {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: none;
 }
 
-.arct__life button {
-  min-width: 30px;
-  min-height: 30px;
+.arct__step {
+  min-width: 42px;
+  min-height: 42px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
-  font-size: 1.15em;
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1;
 }
 
 .arct__lifenum {
-  min-width: 2.2em;
+  min-width: 1.9em;
   text-align: center;
   font-weight: 800;
-  font-size: 1.15em;
+  /* Big enough to read at arm's length across the table, like the tile's own
+     number it stands in for. */
+  font-size: clamp(1.6rem, 17cqmin, 2.5rem);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2393,16 +2413,38 @@ input[type="text"] {
    furniture cannot sit on top of it: "there's no way to exit the game" was
    the first thing said about it. */
 .arct__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   flex: none;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
+  /* A real target: 44 is the smallest thing a thumb hits reliably, and this
+     one started life as a 1rem glyph in a corner. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
   font-weight: 800;
-  font-size: 0.95em;
+  font-size: 1rem;
   white-space: nowrap;
+}
+
+.arct__close-word {
+  font-size: 0.85rem;
+}
+
+/* In a narrow tile the word goes, the button stays square, and the turn
+   readout drops to a dot and a clock -- both of which are on the board
+   anyway. Anything to keep the bar on one row: wrapped to two it ate the
+   board it sits above. */
+@container (max-width: 330px) {
+  .arct__close-word,
+  .arct__who {
+    display: none;
+  }
 }
 
 .arct__body {
@@ -2421,6 +2463,29 @@ input[type="text"] {
   gap: 6px;
   flex: 1;
   min-height: 0;
+}
+
+/* Status and the one action share a row, so the board above them keeps the
+   height. Two stacked full-width blocks left 25px cards in a seat tile. */
+.arc__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.arc__foot .arc__status {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arct .bigbtn {
+  width: auto;
+  flex: none;
 }
 
 .arc__status {
@@ -2683,7 +2748,8 @@ input[type="text"] {
   }
 
   .arct__bar {
-    padding: 2px 5px;
+    padding: 4px;
+    gap: 5px;
   }
 }
 
@@ -2695,6 +2761,7 @@ input[type="text"] {
 }
 
 .seatpick__seat {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2704,6 +2771,11 @@ input[type="text"] {
   border-radius: 12px;
   font-weight: 800;
   font-size: 1rem;
+}
+
+.seatpick__seat.is-on {
+  outline: 3px solid #fff;
+  outline-offset: -3px;
 }
 
 .seatpick__tag {

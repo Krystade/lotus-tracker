@@ -523,6 +523,7 @@ await page.waitForSelector(".seatpick", { timeout: 10000 });
 // A seat, not the middle of the board: the games play inside that player's
 // own tile so the rest stays readable for whoever's turn it is.
 await page.locator(".seatpick__seat").nth(3).click({ force: true });
+await page.getByText("Done").click();
 await page.waitForSelector(".arct", { timeout: 10000 });
 check("all three games are listed", (await page.locator(".arc__pick").count()) === 3);
 check(
@@ -583,8 +584,21 @@ check(
   dealt.n === 12 && dealt.hidden,
   `${dealt.n} cards`,
 );
-await esc();
-await page.waitForTimeout(200);
+// The labelled button, not the Escape key: there is no keyboard at a table.
+const closeBox = await page.locator(".arct__close").boundingBox();
+check(
+  "the way out is a real target, clear of the screen edge",
+  Math.min(closeBox.width, closeBox.height) >= 44 &&
+    Math.min(
+      closeBox.x,
+      closeBox.y,
+      375 - (closeBox.x + closeBox.width),
+      812 - (closeBox.y + closeBox.height),
+    ) >= 8,
+  `${Math.round(closeBox.width)}x${Math.round(closeBox.height)}`,
+);
+await page.locator(".arct__close").click();
+await page.waitForTimeout(250);
 check("the games close again", (await page.locator(".arct").count()) === 0);
 
 // --- responsive ------------------------------------------------------

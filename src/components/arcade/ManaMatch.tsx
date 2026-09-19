@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PAIRS, flip, isFaceUp, newMatch, resolve } from "../../game/arcade/match";
+import { flip, isFaceUp, newMatch, resolve } from "../../game/arcade/match";
 import { seeded } from "../../game/arcade/rng";
 import { GLYPH_COLOR, GLYPH_LETTER, inkFor } from "./glyphs";
 
@@ -45,18 +45,6 @@ export function ManaMatch({ onWin }: { onWin: (moves: number) => void }) {
 
   return (
     <div className="arc">
-      <div className="arc__status">
-        {state.done ? (
-          <strong>
-            Cleared in {state.moves} {state.moves === 1 ? "try" : "tries"}
-          </strong>
-        ) : (
-          <>
-            {state.moves} {state.moves === 1 ? "try" : "tries"} · {PAIRS} pairs
-          </>
-        )}
-      </div>
-
       <div
         className={`arc__grid arc__grid--match${state.done ? " is-done" : ""}`}
       >
@@ -82,9 +70,20 @@ export function ManaMatch({ onWin }: { onWin: (moves: number) => void }) {
         })}
       </div>
 
-      <button className="bigbtn bigbtn--ghost" onClick={restart}>
-        {state.done ? "Deal again" : "Reshuffle"}
-      </button>
+      <div className="arc__foot">
+        <span className="arc__status">
+          {state.done ? (
+            <strong>
+              Cleared in {state.moves} {state.moves === 1 ? "try" : "tries"}
+            </strong>
+          ) : (
+            `${state.moves} ${state.moves === 1 ? "try" : "tries"}`
+          )}
+        </span>
+        <button className="bigbtn bigbtn--ghost" onClick={restart}>
+          {state.done ? "Deal again" : "Reshuffle"}
+        </button>
+      </div>
     </div>
   );
 }

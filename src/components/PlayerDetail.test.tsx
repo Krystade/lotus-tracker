@@ -12,7 +12,12 @@ describe("PlayerDetail", () => {
     // With the buggy selector (filter() in the store selector) this render
     // throws "Maximum update depth exceeded".
     expect(() =>
-      render(<PlayerDetail playerId="p0" onClose={() => {}} />),
+      render(<PlayerDetail
+        playerId="p0"
+        onClose={() => {}}
+        onPlayGames={() => {}}
+        gamesOpen={false}
+      />),
     ).not.toThrow();
 
     expect(screen.getByText("40")).toBeInTheDocument();

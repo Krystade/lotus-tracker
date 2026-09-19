@@ -44,11 +44,11 @@ const openArcade = async (seat = SEAT) => {
   await page.waitForTimeout(250);
   await page.getByText("Pass the time").click();
   await page.waitForSelector(".seatpick", { timeout: 5000 });
-  await page.locator(`[aria-label="play in P${Number(seat.slice(1)) + 1}’s seat"]`)
-    .click({ force: true })
-    .catch(async () => {
-      await page.locator(".seatpick__seat").nth(Number(seat.slice(1))).click({ force: true });
-    });
+  await page
+    .locator(".seatpick__seat")
+    .nth(Number(seat.slice(1)))
+    .click({ force: true });
+  await page.getByText("Done").click();
   await page.waitForSelector(".arct", { timeout: 5000 });
   await page.waitForTimeout(250);
 };
@@ -478,9 +478,34 @@ check(
 const closeBox = await page.locator(".arct__close").boundingBox();
 check(
   "the way out is a real target",
-  Math.min(closeBox.width, closeBox.height) >= 28 &&
-    closeBox.width * closeBox.height >= 1200,
+  Math.min(closeBox.width, closeBox.height) >= 44,
   `${Math.round(closeBox.width)}x${Math.round(closeBox.height)}`,
+);
+
+// "some formats it's on the top of the phone screen, too close to the charge
+// or time" -- the tiles that touch the edge of the screen used to put this
+// button flush against it.
+const vp0 = page.viewportSize();
+const edge = Math.min(
+  closeBox.x,
+  closeBox.y,
+  vp0.width - (closeBox.x + closeBox.width),
+  vp0.height - (closeBox.y + closeBox.height),
+);
+check(
+  "the way out is not jammed against the edge of the screen",
+  edge >= 10,
+  `${Math.round(edge)}px clear`,
+);
+
+// Prominent, not merely present: this stands in for the tile's own number.
+const lifeSize = await page.evaluate(() =>
+  parseFloat(getComputedStyle(document.querySelector(".arct__lifenum")).fontSize),
+);
+check(
+  "the life total is big enough to read across a table",
+  lifeSize >= 26,
+  `${Math.round(lifeSize)}px`,
 );
 
 // Reading it is half of it; the active player has to be able to use it.
@@ -551,6 +576,95 @@ check(
   "the Close button closes it from inside a game",
   (await page.locator(".arct").count()) === 0,
 );
+
+// ---- more than one bored player --------------------------------------
+// Four people waiting on the same long turn is the normal case; making them
+// queue for one game on a shared phone is not.
+console.log("several seats at once");
+await page.click(".center__hex");
+await page.waitForTimeout(250);
+await page.getByText("Pass the time").click();
+await page.waitForSelector(".seatpick");
+await page.locator(".seatpick__seat").nth(1).click({ force: true });
+await page.locator(".seatpick__seat").nth(3).click({ force: true });
+await page.getByText("Done").click();
+await page.waitForTimeout(400);
+check("two seats can play at the same time", (await page.locator(".arct").count()) === 2);
+
+// Different games in each, to prove the state is per seat and not shared.
+await page.locator(".arct").nth(0).getByText("Mana Match").click();
+await page.locator(".arct").nth(1).getByText("Chant").click();
+await page.waitForTimeout(500);
+const inEach = await page.$$eval(".arct", (els) =>
+  els.map((e) => ({
+    cards: e.querySelectorAll(".mcard").length,
+    pads: e.querySelectorAll(".pad").length,
+  })),
+);
+check(
+  "each seat plays its own game, not a shared one",
+  inEach.length === 2 &&
+    inEach.some((p) => p.cards === 12 && p.pads === 0) &&
+    inEach.some((p) => p.pads === 5 && p.cards === 0),
+  JSON.stringify(inEach),
+);
+
+// One tile's cards must not turn over because the other seat tapped.
+const facesIn = (i) =>
+  page.evaluate((n) => {
+    const arc = document.querySelectorAll(".arct")[n];
+    return [...arc.querySelectorAll(".mcard")].filter((c) =>
+      c.classList.contains("is-up"),
+    ).length;
+  }, i);
+const matchPanel = inEach[0].cards === 12 ? 0 : 1;
+await page.locator(".arct").nth(matchPanel).locator(".mcard").first().click({ force: true });
+await page.waitForTimeout(250);
+const before2 = await facesIn(matchPanel);
+check(
+  "a card really is showing before the isolation check",
+  before2 === 1,
+  `${before2} face up`,
+);
+await page
+  .locator(".arct")
+  .nth(matchPanel === 0 ? 1 : 0)
+  .locator(".pad")
+  .first()
+  .click({ force: true });
+await page.waitForTimeout(300);
+check(
+  "one seat's taps do not reach the other's game",
+  (await facesIn(matchPanel)) === before2,
+  `${before2} -> ${await facesIn(matchPanel)}`,
+);
+
+// Each has its own way out, and closing one leaves the other playing.
+check(
+  "every seat has its own close button",
+  (await page.locator(".arct__close").count()) === 2,
+);
+await page.locator(".arct").nth(0).locator(".arct__close").click();
+await page.waitForTimeout(300);
+check(
+  "closing one seat leaves the other playing",
+  (await page.locator(".arct").count()) === 1,
+);
+await page.screenshot({ path: "screenshots/arcade-two-seats.png" });
+await page.keyboard.press("Escape");
+await page.waitForTimeout(200);
+
+// A player starts one from their own tile, without the shared menu.
+await page.locator(".tile__more").nth(2).click({ force: true });
+await page.waitForTimeout(350);
+await page.getByText("Pass the time").click();
+await page.waitForTimeout(350);
+check(
+  "a player can start a game from their own tile",
+  (await page.locator(".arct").count()) === 1,
+);
+await page.locator(".arct__close").click();
+await page.waitForTimeout(250);
 await openArcade();
 check(
   "reopening starts at the menu, not mid-game",

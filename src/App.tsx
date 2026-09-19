@@ -49,10 +49,15 @@ export default function App() {
 
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  // Which seat has the pass-the-time games open. They live inside that
-  // player's own tile, so the rest of the board stays readable and usable for
-  // whoever's turn it actually is.
-  const [arcadeSeat, setArcadeSeat] = useState<string | null>(null);
+  // Which seats have the pass-the-time games open -- any number of them at
+  // once. They live inside each player's own tile, so the rest of the board
+  // stays readable and usable for whoever's turn it actually is, and two
+  // bored players are not made to share one game.
+  const [arcadeSeats, setArcadeSeats] = useState<string[]>([]);
+  const toggleArcadeSeat = (id: string) =>
+    setArcadeSeats((seats) =>
+      seats.includes(id) ? seats.filter((s) => s !== id) : [...seats, id],
+    );
 
   // Look animation is frozen by the setting, and also whenever the tab is
   // hidden — CSS animations keep running when a page is backgrounded, unlike
@@ -76,7 +81,7 @@ export default function App() {
       if (e.key === "Escape") {
         setDetailId(null);
         setOverlay(null);
-        setArcadeSeat(null);
+        setArcadeSeats([]);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -95,8 +100,8 @@ export default function App() {
     >
       <Board
         onOpenDetail={setDetailId}
-        arcadeSeat={arcadeSeat}
-        onCloseArcade={() => setArcadeSeat(null)}
+        arcadeSeats={arcadeSeats}
+        onCloseArcade={(id) => setArcadeSeats((s) => s.filter((x) => x !== id))}
       />
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}
@@ -108,7 +113,15 @@ export default function App() {
       />
 
       {detailId && (
-        <PlayerDetail playerId={detailId} onClose={() => setDetailId(null)} />
+        <PlayerDetail
+          playerId={detailId}
+          onClose={() => setDetailId(null)}
+          onPlayGames={() => {
+            toggleArcadeSeat(detailId);
+            setDetailId(null);
+          }}
+          gamesOpen={arcadeSeats.includes(detailId)}
+        />
       )}
       {overlay === "newgame" && (
         <NewGameScreen onClose={() => setOverlay(null)} />
@@ -120,11 +133,9 @@ export default function App() {
       {overlay === "dice" && <DicePanel onClose={() => setOverlay(null)} />}
       {overlay === "arcade" && (
         <ArcadeSeatPicker
+          open={arcadeSeats}
+          onToggle={toggleArcadeSeat}
           onClose={() => setOverlay(null)}
-          onPick={(id) => {
-            setArcadeSeat(id);
-            setOverlay(null);
-          }}
         />
       )}
       {overlay === "random" && (

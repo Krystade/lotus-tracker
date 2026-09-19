@@ -89,10 +89,6 @@ export function ManaChant({ onEnd }: { onEnd: (score: number) => void }) {
 
   return (
     <div className="arc">
-      <div className="arc__status" aria-live="polite">
-        {phase === "over" ? <strong>{status()}</strong> : status()}
-      </div>
-
       <div className="arc__grid arc__grid--pads">
         {PADS.map((pad) => (
           <button
@@ -109,15 +105,20 @@ export function ManaChant({ onEnd }: { onEnd: (score: number) => void }) {
         ))}
       </div>
 
-      {/* Pink only when starting over is the thing to do; mid-run it is an
-          escape hatch and should not be the loudest thing on screen. */}
-      <button
-        className={`bigbtn${phase === "input" ? " bigbtn--ghost" : ""}`}
-        onClick={start}
-        disabled={phase === "showing"}
-      >
-        {state === null ? "Start" : phase === "over" ? "Again" : "Restart"}
-      </button>
+      <div className="arc__foot">
+        <span className="arc__status" aria-live="polite">
+          {phase === "over" ? <strong>{status()}</strong> : status()}
+        </span>
+        {/* Pink only when starting over is the thing to do; mid-run it is an
+            escape hatch and should not be the loudest thing on screen. */}
+        <button
+          className={`bigbtn${phase === "input" ? " bigbtn--ghost" : ""}`}
+          onClick={start}
+          disabled={phase === "showing"}
+        >
+          {state === null ? "Start" : phase === "over" ? "Again" : "Restart"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -53,20 +53,19 @@ export function ArcadeTile({
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
     >
-      {/* One bar, everything that must never be hidden by a game: the way
-          out, this player's own life (the tile it covers is their life
-          counter -- taking that away to play noughts and crosses is not a
-          trade anyone asked for), and whose turn it is. */}
-      <div className={`arct__bar${expired ? " is-expired" : ""}${
-        yourTurn ? " is-yours" : ""
-      }`}>
-        {/* First, not last. Every tile is rotated to face its player, so the
-            board's centre is always "up" from where they sit -- which puts the
-            centre hex and the game clock over this bar's far end. A close
-            control there is half covered and hard to hit, which is exactly
-            how it arrived: no visible way out of a game. */}
-        <button className="arct__close" onClick={onClose}>
-          ✕ Close
+      {/* One bar the games never hide: the way out, this player's own life,
+          and whose turn it is. Close comes first, at the end furthest from
+          the middle of the board -- every tile faces outward, so the board's
+          centre is "up" for all of them, and the centre hex and game clock
+          sit on whatever is at that end. */}
+      <div
+        className={`arct__bar${expired ? " is-expired" : ""}${
+          yourTurn ? " is-yours" : ""
+        }`}
+      >
+        <button className="arct__close" onClick={onClose} aria-label="close games">
+          <span aria-hidden>✕</span>
+          <span className="arct__close-word">Close</span>
         </button>
 
         {game && (
@@ -75,12 +74,16 @@ export function ArcadeTile({
             onClick={() => setGameId(null)}
             aria-label="back to the game list"
           >
-            ‹ Games
+            ‹
           </button>
         )}
 
+        {/* The tile this covers IS a life counter. Losing sight of your own
+            total for as long as you are bored is not a trade worth making,
+            so it is the biggest thing on the bar. */}
         <div className="arct__life">
           <button
+            className="arct__step"
             onClick={() => adjustLife(playerId, -1)}
             aria-label="decrease your life"
           >
@@ -88,6 +91,7 @@ export function ArcadeTile({
           </button>
           <span className="arct__lifenum">{me?.life ?? 0}</span>
           <button
+            className="arct__step"
             onClick={() => adjustLife(playerId, 1)}
             aria-label="increase your life"
           >

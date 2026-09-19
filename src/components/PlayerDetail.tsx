@@ -22,9 +22,17 @@ const STANDARD_COUNTERS: { key: CounterKey; label: string }[] = [
 interface Props {
   playerId: string;
   onClose: () => void;
+  /** Start (or stop) the pass-the-time games in this player's own tile. */
+  onPlayGames: () => void;
+  gamesOpen: boolean;
 }
 
-export function PlayerDetail({ playerId, onClose }: Props) {
+export function PlayerDetail({
+  playerId,
+  onClose,
+  onPlayGames,
+  gamesOpen,
+}: Props) {
   // Select the stable players array; deriving player/others via find/filter
   // inside the selector would return a new reference each render and trigger an
   // infinite useSyncExternalStore loop.
@@ -256,6 +264,14 @@ export function PlayerDetail({ playerId, onClose }: Props) {
               })}
             </section>
           )}
+
+          <section className="panel__section">
+            {/* Here as well as in the centre menu: a player who is bored
+                reaches for their own tile, not for the shared menu. */}
+            <button className="panel__games" onClick={onPlayGames}>
+              {gamesOpen ? "⚄ Stop playing games" : "⚄ Pass the time"}
+            </button>
+          </section>
 
           <section className="panel__section">
             <button
