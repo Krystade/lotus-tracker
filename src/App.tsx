@@ -31,14 +31,15 @@ export default function App() {
   const expired = useStore((s) => s.game.turn.expired);
   const soundOn = useStore((s) => s.settings.soundOn);
   const vibrateOn = useStore((s) => s.settings.vibrateOn);
+  const alertVolume = useStore((s) => s.settings.alertVolume);
   const wasExpired = useRef(expired);
 
   useEffect(() => {
     if (expired && !wasExpired.current) {
-      fireTurnExpiredAlert(soundOn, vibrateOn);
+      fireTurnExpiredAlert(soundOn, vibrateOn, alertVolume);
     }
     wasExpired.current = expired;
-  }, [expired, soundOn, vibrateOn]);
+  }, [expired, soundOn, vibrateOn, alertVolume]);
 
   // Unlock audio on the first user interaction (iOS autoplay policy).
   useEffect(() => {

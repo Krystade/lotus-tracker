@@ -18,6 +18,7 @@ import { CounterChips, type CounterRef } from "./CounterChips";
 import { CounterQuickAdjust } from "./CounterQuickAdjust";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
+import { junctionFor, type TileJunction } from "../layout/junction";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
 interface Props {
@@ -33,8 +34,60 @@ interface Props {
 const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 76 };
 const DRAG_THRESHOLD = 6;
 
+// Corner placement. The pill hugs the edge of the tile the junction is on --
+// in every built-in layout that is the tile's own top edge, where the +/-
+// zones (the middle 56% of the height) do not reach -- so a near-miss on
+// life never passes the turn. Along that edge it keeps clear of the tile's
+// rounded corner or, where the junction is the middle of the board, of the
+// menu hexagon and the game clock under it. Screen px.
+//
+// The hexagon-and-clock column is centred as a whole, so the hexagon sits
+// ~12px above the board's middle; on a notched phone the safe areas push the
+// board's middle a further ~8px down from the screen's. Hence up > sideways.
+const EDGE_INSET = 4;
+const CORNER_INSET = 10;
+const HEX_CLEARANCE = { left: 40, right: 40, up: 56, down: 50 };
+
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
+
+const LOCAL_TO_SCREEN: Record<Rotation, Rotation> = { 0: 0, 90: 270, 180: 180, 270: 90 };
+
+/**
+ * Where the pill goes in "corner" mode, in the tile's own (rotated) frame:
+ * its anchor as a percentage of the content box, and the translate that puts
+ * the pill's near corner on that anchor, pointing into the tile.
+ */
+function cornerPillPlacement(j: TileJunction, rot: Rotation) {
+  const [ax, ay] = screenToLocal(rot, j.fx - 0.5, j.fy - 0.5);
+  let [dx, dy] = screenToLocal(rot, j.sx, j.sy).map(Math.sign);
+  // Hug a top/bottom edge when the junction is on one; otherwise a side.
+  const hugY = dy !== 0;
+  let along = hugY ? dx : dy;
+  let alongPx = along * CORNER_INSET;
+  if (j.atCenter) {
+    // Head-to-head seats meet mid-edge, square under the hexagon; sit beside
+    // it, not under it.
+    if (along === 0) along = 1;
+    const unit: [number, number] = hugY ? [along, 0] : [0, along];
+    const [sx, sy] = screenToLocal(LOCAL_TO_SCREEN[rot], unit[0], unit[1]);
+    const need =
+      sx > 0 ? HEX_CLEARANCE.right
+      : sx < 0 ? HEX_CLEARANCE.left
+      : sy > 0 ? HEX_CLEARANCE.down
+      : HEX_CLEARANCE.up;
+    alongPx = along * need;
+  }
+  if (hugY) dx = along;
+  else dy = along;
+  const px = hugY ? alongPx : dx * EDGE_INSET;
+  const py = hugY ? dy * EDGE_INSET : alongPx;
+  return {
+    left: `${(0.5 + ax) * 100}%`,
+    top: `${(0.5 + ay) * 100}%`,
+    transform: `translate(calc(${-50 + dx * 50}% + ${px}px), calc(${-50 + dy * 50}% + ${py}px))`,
+  };
+}
 
 /** Convert a screen-space drag delta into the tile's own (pre-rotation) axes. */
 function screenToLocal(rot: Rotation, dx: number, dy: number): [number, number] {
@@ -67,6 +120,8 @@ export function PlayerTile({
   });
   const scale = useStore((s) => s.settings.turnTimerScale);
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
+  const timerPlacement = useStore((s) => s.settings.turnTimerPlacement);
+  const layout = useStore((s) => s.game.layout);
   // Which counter chip, if any, has its quick-adjust popover open.
   const [quickCounter, setQuickCounter] = useState<CounterRef | null>(null);
   // Share of the turn budget still on the clock, for the countdown ring.
@@ -175,12 +230,20 @@ export function PlayerTile({
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
   const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
+  const junction =
+    timerPlacement === "corner" ? junctionFor(layout, pid) : null;
+  const pillPlace: CSSProperties = junction
+    ? cornerPillPlacement(junction, placement.rotation)
+    : { left: `${pillPos.x}%`, top: `${pillPos.y}%` };
 
-  const contentStyle: CSSProperties = {
+  const contentStyle = {
     transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
     width: rotated ? "100cqh" : "100%",
     height: rotated ? "100cqw" : "100%",
-  };
+    // The content box's own width and height, for anything sized to fit it.
+    "--lw": rotated ? "100cqh" : "100cqw",
+    "--lh": rotated ? "100cqw" : "100cqh",
+  } as CSSProperties;
 
   // Contrast comes from the look's declared base colour, not from the rendered
   // pixels, so a gradient, striped or animated tile is as legible as a flat
@@ -202,6 +265,8 @@ export function PlayerTile({
   };
   const onPillMove = (e: PointerEvent) => {
     const st = drag.current;
+    // Pinned to the corner: nothing to drag, so any movement is still a tap.
+    if (junction) return;
     const el = contentRef.current;
     if (!st || !el) return;
     const dx = e.clientX - st.sx;
@@ -326,9 +391,8 @@ export function PlayerTile({
             }`}
             style={
               {
-                left: `${pillPos.x}%`,
-                top: `${pillPos.y}%`,
-                fontSize: `calc(0.95rem * ${scale})`,
+                ...pillPlace,
+                "--timer-scale": String(scale),
                 // Drives the countdown ring; drains clockwise from the top.
                 "--pct": String(turnFraction),
               } as CSSProperties
@@ -336,7 +400,11 @@ export function PlayerTile({
             onPointerDown={onPillDown}
             onPointerMove={onPillMove}
             onPointerUp={onPillUp}
-            aria-label="turn timer: tap to pass turn, drag to move"
+            aria-label={
+              junction
+                ? "turn timer: tap to pass turn"
+                : "turn timer: tap to pass turn, drag to move"
+            }
           >
             <span className="tile__pill-inner">
               <span className="tile__pill-turn">{turn.turnNumber}</span>

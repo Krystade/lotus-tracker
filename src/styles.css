@@ -325,6 +325,13 @@ input {
 .tile__pill {
   position: absolute;
   transform: translate(-50%, -50%);
+  /* Sized to the tile it sits in, not to a fixed rem, so a tablet or a big
+     two-player tile gets a bigger timer. --pill-fit is the most the tile's
+     own box holds (the pill is ~5.8em long, 6.4em with a two-digit turn, and
+     ~2.4em thick); the slider takes a share of it, a third at 1x, all of it
+     at 3x. */
+  --pill-fit: min(calc(var(--lw, 100cqw) * 0.9 / 6.4), calc(var(--lh, 100cqh) * 0.6 / 2.4));
+  font-size: min(calc(var(--pill-fit) * var(--timer-scale, 1) / 3), var(--pill-fit));
   /* Above the counter chips: the pill is interactive and draggable, so where
      they do overlap it must stay legible and hittable. */
   z-index: 4;
@@ -337,10 +344,13 @@ input {
   );
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8em;
   overflow: hidden;
-  padding: 3px;
+  padding: max(3px, 0.2em);
   font-weight: 800;
+  /* Tight, so at the default size the pill fits the band along a tile's edge
+     that the +/- zones leave free. */
+  line-height: 1;
   touch-action: none;
 }
 
@@ -348,7 +358,7 @@ input {
   display: flex;
   align-items: stretch;
   background: #000;
-  border-radius: 9px;
+  border-radius: 0.6em;
   overflow: hidden;
 }
 
@@ -358,12 +368,12 @@ input {
 }
 
 .tile__pill-turn {
-  padding: 6px 10px;
+  padding: 0.45em 0.65em;
   background: rgba(255, 255, 255, 0.12);
 }
 
 .tile__pill-time {
-  padding: 6px 12px;
+  padding: 0.45em 0.8em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -872,15 +882,23 @@ input[type="text"] {
   font-size: 0.85rem;
 }
 
+/* A stand-in tile at a phone's four-player proportions: the pill is sized
+   off whatever box holds it, so this shows its true share of a tile. */
 .sizepreview {
-  display: flex;
-  justify-content: center;
-  padding: 6px 0 10px;
+  position: relative;
+  container-type: size;
+  width: 100%;
+  aspect-ratio: 406 / 187;
+  margin: 4px 0 10px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3a2d6e, #1e1838);
+  overflow: hidden;
 }
 
 .tile__pill--preview {
-  position: static;
-  transform: none;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
 }
 
 .minsetter {

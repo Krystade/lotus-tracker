@@ -74,12 +74,22 @@ export interface LayoutConfig {
   builtIn: boolean;
 }
 
+export type TurnTimerPlacement = "drag" | "corner";
+
 export interface Settings {
   /** Default per-turn countdown budget, in seconds. */
   defaultTurnBudgetSec: number;
-  /** On-screen scale of the turn timer pill (1 = default). */
+  /**
+   * Size of the turn timer pill, relative to the tile it sits in (1 = default,
+   * about a third of the most the tile can hold; ~3 fills it).
+   */
   turnTimerScale: number;
+  /** "drag": wherever each player last dragged it. "corner": the corner of
+   * the active tile where the most tiles meet -- the middle of the table. */
+  turnTimerPlacement: TurnTimerPlacement;
   soundOn: boolean;
+  /** Loudness of the 0:00 chime, 0..1. */
+  alertVolume: number;
   vibrateOn: boolean;
   keepAwake: boolean;
   turnTimerEnabled: boolean;
@@ -133,7 +143,9 @@ export interface GameSetup {
 export const DEFAULT_SETTINGS: Settings = {
   defaultTurnBudgetSec: 300,
   turnTimerScale: 1,
+  turnTimerPlacement: "drag",
   soundOn: true,
+  alertVolume: 0.5,
   vibrateOn: true,
   keepAwake: true,
   turnTimerEnabled: true,

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { formatClock } from "../util/format";
 import { PLAYER_COLORS, textOn } from "../layout/colors";
+import { playBeep } from "../util/alert";
+import type { CSSProperties } from "react";
 
 const BUDGET_PRESETS = [120, 180, 300, 420, 600];
 
@@ -39,6 +41,16 @@ export function SettingsPanel({ onClose }: Props) {
       timer.current = window.setTimeout(() => setDemo(null), 900);
     });
   };
+  // Let the volume be judged by ear while it is being set, once the slider
+  // settles rather than on every step of a drag.
+  const chime = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(chime.current), []);
+  const setVolume = (v: number) => {
+    update({ alertVolume: v });
+    window.clearTimeout(chime.current);
+    chime.current = window.setTimeout(() => playBeep(v), 250);
+  };
+
   const demoSeat = PLAYER_COLORS[4]; // green: the seat the old wash muddied worst
 
   return (
@@ -102,20 +114,24 @@ export function SettingsPanel({ onClose }: Props) {
 
           <section className="panel__section">
             <h3>Turn timer size</h3>
-            <div className="sizepreview">
+            <div className="sizepreview" aria-hidden>
               <span
                 className="tile__pill tile__pill--preview"
-                style={{ fontSize: `calc(0.95rem * ${settings.turnTimerScale})` }}
+                style={
+                  { "--timer-scale": String(settings.turnTimerScale) } as CSSProperties
+                }
               >
-                <span className="tile__pill-turn">3</span>
-                <span className="tile__pill-time">5:00</span>
+                <span className="tile__pill-inner">
+                  <span className="tile__pill-turn">3</span>
+                  <span className="tile__pill-time">5:00</span>
+                </span>
               </span>
             </div>
             <input
               className="slider"
               type="range"
-              min={0.6}
-              max={2.2}
+              min={0.5}
+              max={3}
               step={0.1}
               value={settings.turnTimerScale}
               onChange={(e) =>
@@ -125,8 +141,36 @@ export function SettingsPanel({ onClose }: Props) {
             <div className="slider__scale">
               <span>Small</span>
               <span>{settings.turnTimerScale.toFixed(1)}×</span>
-              <span>Large</span>
+              <span>Fills tile</span>
             </div>
+            <p className="panel__sublabel">
+              Scales with the screen: bigger tiles get a bigger timer.
+            </p>
+
+            <p className="panel__sublabel">Where it sits</p>
+            <div className="chipgrid">
+              {(
+                [
+                  ["drag", "Drag anywhere"],
+                  ["corner", "Centre corner"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  className={`chip${
+                    settings.turnTimerPlacement === mode ? " is-on" : ""
+                  }`}
+                  onClick={() => update({ turnTimerPlacement: mode })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="panel__sublabel">
+              {settings.turnTimerPlacement === "corner"
+                ? "Pinned in the active player's corner where the most tiles meet."
+                : "Each player drags it where they like; it stays there."}
+            </p>
           </section>
 
           <section className="panel__section">
@@ -139,6 +183,25 @@ export function SettingsPanel({ onClose }: Props) {
                 onChange={(e) => update({ soundOn: e.target.checked })}
               />
             </label>
+            {settings.soundOn && (
+              <>
+                <input
+                  className="slider"
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={settings.alertVolume}
+                  aria-label="alert volume"
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                />
+                <div className="slider__scale">
+                  <span>Quiet</span>
+                  <span>{Math.round(settings.alertVolume * 100)}%</span>
+                  <span>Loud</span>
+                </div>
+              </>
+            )}
             <label className="toggle">
               <span>Vibrate at 0:00 (Android)</span>
               <input

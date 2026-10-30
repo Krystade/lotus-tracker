@@ -69,6 +69,11 @@ export function sanitizeSettings(v: unknown, defaults?: Settings): Settings {
     turnTimerScale: num(s.turnTimerScale, d.turnTimerScale),
     lookSpeed: num(s.lookSpeed, d.lookSpeed),
     effectStrength: num(s.effectStrength, d.effectStrength),
+    alertVolume: Math.max(0, Math.min(1, num(s.alertVolume, d.alertVolume))),
+    turnTimerPlacement:
+      s.turnTimerPlacement === "drag" || s.turnTimerPlacement === "corner"
+        ? s.turnTimerPlacement
+        : d.turnTimerPlacement,
     soundOn: bool(s.soundOn, d.soundOn),
     vibrateOn: bool(s.vibrateOn, d.vibrateOn),
     keepAwake: bool(s.keepAwake, d.keepAwake),

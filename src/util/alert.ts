@@ -40,24 +40,46 @@ export function unlockAudio(): void {
   unlocked = true;
 }
 
-/** Short two-tone beep. Best-effort; silent if audio is unavailable/blocked. */
-export function playBeep(): void {
+/** Peak gain at full volume. Volume is squared on the way in, so the slider
+ * moves evenly in loudness rather than doing everything in its first quarter. */
+const MAX_GAIN = 0.3;
+
+/**
+ * A soft two-note chime. Best-effort; silent if audio is unavailable/blocked.
+ *
+ * It used to be a square wave switched straight on at a fixed 0.09 gain: a
+ * square wave's loudness is mostly odd harmonics at 2-3kHz, right where phone
+ * speakers and ears are most sensitive, and a gain that jumps from 0 clicks.
+ * That is what made it loud and sudden. Sines with a short fade-in and a
+ * decaying tail carry the same "time's up" with nothing harsh in them.
+ */
+export function playBeep(volume = 0.5): void {
   const c = getCtx();
   if (!c) return;
+  const peak = MAX_GAIN * Math.max(0, Math.min(1, volume)) ** 2;
+  if (peak <= 0) return;
   if (c.state === "suspended") c.resume().catch(() => undefined);
   try {
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = "square";
-    osc.frequency.value = 660;
-    gain.gain.value = 0.09;
-    osc.connect(gain);
-    gain.connect(c.destination);
-    osc.start();
-    osc.frequency.setValueAtTime(880, c.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.09, c.currentTime + 0.28);
-    gain.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.32);
-    osc.stop(c.currentTime + 0.34);
+    const t0 = c.currentTime + 0.01;
+    // A5 then D6: high enough for a phone speaker to carry, nowhere near
+    // the old square wave's harmonic pile-up.
+    ([
+      [880, 0],
+      [1175, 0.16],
+    ] as const).forEach(([freq, at]) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const start = t0 + at;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.start(start);
+      osc.stop(start + 0.5);
+    });
   } catch {
     // ignore
   }
@@ -72,7 +94,11 @@ export function vibrate(pattern: number | number[] = [120, 60, 120]): void {
   }
 }
 
-export function fireTurnExpiredAlert(sound: boolean, buzz: boolean): void {
-  if (sound) playBeep();
+export function fireTurnExpiredAlert(
+  sound: boolean,
+  buzz: boolean,
+  volume = 0.5,
+): void {
+  if (sound) playBeep(volume);
   if (buzz) vibrate();
 }
