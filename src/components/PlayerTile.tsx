@@ -18,7 +18,9 @@ import { CounterChips, type CounterRef } from "./CounterChips";
 import { CounterQuickAdjust } from "./CounterQuickAdjust";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
+import { StickerBadge } from "./StickerBadge";
 import { junctionFor, type TileJunction } from "../layout/junction";
+import { warnLevel } from "../game/turn";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
 interface Props {
@@ -121,6 +123,8 @@ export function PlayerTile({
   const scale = useStore((s) => s.settings.turnTimerScale);
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
   const timerPlacement = useStore((s) => s.settings.turnTimerPlacement);
+  const warnOn = useStore((s) => s.settings.turnWarnOn);
+  const allStickers = useStore((s) => s.game.stickers);
   const layout = useStore((s) => s.game.layout);
   // Which counter chip, if any, has its quick-adjust popover open.
   const [quickCounter, setQuickCounter] = useState<CounterRef | null>(null);
@@ -297,6 +301,7 @@ export function PlayerTile({
         lethal ? " tile--lethal" : ""
       }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
+      data-pid={pid}
       data-style={look.styleId}
       data-fx={fx?.kind}
       data-fx-level={fx?.intensity}
@@ -374,7 +379,15 @@ export function PlayerTile({
           </button>
         )}
 
-        <CounterChips counters={player.counters} onPick={setQuickCounter} />
+        <CounterChips
+          counters={player.counters}
+          onPick={setQuickCounter}
+          lead={allStickers
+            .filter((st) => st.holder === pid)
+            .map((st) => (
+              <StickerBadge key={st.id} id={st.id} holder={pid} />
+            ))}
+        />
 
         <button
           className="tile__more"
@@ -387,6 +400,10 @@ export function PlayerTile({
         {isActive && timerEnabled && (
           <button
             className={`tile__pill${turn.expired ? " tile__pill--expired" : ""}${
+              warnOn && !turn.expired && warnLevel(turn.remainingSec)
+                ? ` tile__pill--${warnLevel(turn.remainingSec)}`
+                : ""
+            }${
               dragPos ? " tile__pill--dragging" : ""
             }`}
             style={

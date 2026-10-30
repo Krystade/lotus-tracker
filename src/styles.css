@@ -261,6 +261,44 @@ input {
 
 /* Several counters spread evenly across the bottom; a lone chip keeps its
    natural width instead of stretching into a banner. */
+/* Stickers lead the bottom row: big enough to grab and drag, and kept out
+   of the +/- zones and the top edge the corner timer uses. */
+.tile__sticker {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 1.45rem;
+  line-height: 1;
+  padding: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.tile__sticker--lifted {
+  opacity: 0.35;
+}
+
+.sticker-ghost {
+  position: fixed;
+  z-index: 50;
+  transform: translate(-50%, -70%) scale(1.5);
+  font-size: 1.6rem;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+}
+.sticker-drop {
+  position: fixed;
+  z-index: 49;
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 4px #fff, 0 0 24px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
 .tile__chips--multi .tile__chip {
   flex: 1 1 auto;
   justify-content: center;
@@ -375,6 +413,24 @@ input {
 .tile__pill-time {
   padding: 0.45em 0.8em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Running low: the ring turns amber at 0:30 and red at 0:10, so the table
+   sees it coming instead of only hearing it at 0:00. */
+.tile__pill--warn {
+  background: conic-gradient(
+    #ffb020 calc(var(--pct, 1) * 360deg),
+    rgba(255, 176, 32, 0.25) 0
+  );
+}
+.tile__pill--urgent {
+  background: conic-gradient(
+    #ff3b4e calc(var(--pct, 1) * 360deg),
+    rgba(255, 59, 78, 0.3) 0
+  );
+}
+.tile__pill--urgent .tile__pill-time {
+  color: #ff8a95;
 }
 
 /* Colour the inner, not the pill: the pill's background is the ring. */
@@ -501,6 +557,66 @@ input {
   flex-direction: column;
   gap: 6px;
   margin-top: 4px;
+}
+
+.sheet__note {
+  margin: 0 4px 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+/* ---------- game log ---------- */
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.log__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.log__dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.log__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.95rem;
+}
+.log__who {
+  font-weight: 800;
+}
+.log__down {
+  color: #ff7a87;
+}
+.log__up {
+  color: #6fe39a;
+}
+.log__when {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.log__undo {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+}
+.log__empty {
+  color: var(--muted);
 }
 
 .sheet__close {
@@ -1813,8 +1929,6 @@ input[type="text"] {
 @keyframes lkNeb3 {
   0%, 100% { transform: translate(5%, 30%) scale(0.9); }
   50% { transform: translate(-25%, -10%) scale(1.2); }
-}
-
 }
 
 .look[data-style="tide"] .tile__look span {

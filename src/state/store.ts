@@ -12,6 +12,7 @@ import {
   type Player,
   type PlayerProfile,
   type Settings,
+  type StickerId,
 } from "./types";
 import { sanitizeBests, sanitizeCounters, sanitizeSettings } from "./sanitize";
 import {
@@ -27,6 +28,8 @@ import { defaultLayoutFor } from "../layout/presets";
 import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 import { isBetter } from "../game/arcade/bests";
+import { appendLog, diffGame, sanitizeLog } from "../game/log";
+import { giveSticker, sanitizeStickers } from "../game/stickers";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
 // failed write never breaks the in-memory game (which is the source of truth).
@@ -129,6 +132,33 @@ function newGameState(
     },
     gameElapsedSec: 0,
     gameTimerRunning: true,
+    stickers: [],
+    log: [],
+  };
+}
+
+/**
+ * Every game change passes through here, so the log sees all of them without
+ * each action having to remember to write one. An action that sets its own
+ * `log` (a new game, a reset) is starting over and is not diffed. Stickers
+ * held by a seat that no longer exists are dropped.
+ */
+function finishGame(prev: GameState, next: GameState): GameState {
+  const seats = new Set(next.players.map((p) => p.id));
+  const stickers = next.stickers.every((st) => seats.has(st.holder))
+    ? next.stickers
+    : next.stickers.filter((st) => seats.has(st.holder));
+  const settled = stickers === next.stickers ? next : { ...next, stickers };
+  if (settled.log !== prev.log) return settled;
+  const changes = diffGame(prev, settled);
+  if (changes.length === 0) return settled;
+  return {
+    ...settled,
+    log: appendLog(prev.log, changes, {
+      turn: settled.turn.turnNumber,
+      at: settled.gameElapsedSec,
+      now: Date.now(),
+    }),
   };
 }
 
@@ -182,6 +212,8 @@ export interface StoreState {
   setPlayerName: (playerId: string, name: string) => void;
   setPlayerLook: (playerId: string, look: string) => void;
   setFirstPlayer: (playerId: string) => void;
+  /** Hand a sticker to a seat, or take it off the table with null. */
+  giveSticker: (id: StickerId, holder: string | null) => void;
 
   // turns & timers
   passTurn: () => void;
@@ -213,7 +245,16 @@ function updatePlayer(
 
 export const useStore = create<StoreState>()(
   persist(
-    (set) => ({
+    (rawSet) => {
+      type Next = Partial<StoreState> | ((s: StoreState) => Partial<StoreState>);
+      const set = (next: Next) =>
+        rawSet((s) => {
+          const out = typeof next === "function" ? next(s) : next;
+          return out.game && out.game !== s.game
+            ? { ...out, game: finishGame(s.game, out.game) }
+            : out;
+        });
+      return {
       game: newGameState(4, 40, DEFAULT_SETTINGS),
       settings: DEFAULT_SETTINGS,
       customLayouts: [],
@@ -289,6 +330,10 @@ export const useStore = create<StoreState>()(
                 },
                 turnTimerEnabled: s.settings.turnTimerEnabled,
                 defaultTurnBudgetSec: s.settings.defaultTurnBudgetSec,
+                players: s.game.players.map((p) => ({
+                  name: p.name,
+                  ...(p.look ? { look: p.look } : {}),
+                })),
               },
             ],
           };
@@ -303,14 +348,28 @@ export const useStore = create<StoreState>()(
             turnTimerEnabled: setup.turnTimerEnabled,
             defaultTurnBudgetSec: setup.defaultTurnBudgetSec,
           };
+          const game = newGameState(
+            setup.playerCount,
+            setup.startingLife,
+            settings,
+            setup.layout,
+          );
+          // A saved group: put everyone back in their seat, as they looked.
+          const seated = Array.isArray(setup.players) ? setup.players : [];
           return {
             settings,
-            game: newGameState(
-              setup.playerCount,
-              setup.startingLife,
-              settings,
-              setup.layout,
-            ),
+            game: {
+              ...game,
+              players: game.players.map((p, i) => {
+                const who = seated[i];
+                if (!who || typeof who.name !== "string") return p;
+                return {
+                  ...p,
+                  name: who.name.slice(0, 16) || p.name,
+                  ...(typeof who.look === "string" ? { look: who.look } : {}),
+                };
+              }),
+            },
           };
         }),
 
@@ -341,6 +400,8 @@ export const useStore = create<StoreState>()(
               },
               gameElapsedSec: 0,
               gameTimerRunning: true,
+              stickers: [],
+              log: [],
             },
           };
         }),
@@ -523,6 +584,11 @@ export const useStore = create<StoreState>()(
           },
         })),
 
+      giveSticker: (id, holder) =>
+        set((s) => ({
+          game: { ...s.game, stickers: giveSticker(s.game.stickers, id, holder) },
+        })),
+
       // Choose who takes the first turn (used by "random first player").
       setFirstPlayer: (playerId) =>
         set((s) => {
@@ -673,7 +739,8 @@ export const useStore = create<StoreState>()(
             ? { arcadeBests: { ...s.arcadeBests, [gameId]: value } }
             : {},
         ),
-    }),
+      };
+    },
     {
       name: "lotus-tracker",
       version: 2,
@@ -713,6 +780,8 @@ export const useStore = create<StoreState>()(
         const ids = new Set(players.map((pl) => pl.id));
         const game = {
           ...rawGame,
+          stickers: sanitizeStickers(rawGame.stickers, ids),
+          log: sanitizeLog(rawGame.log),
           layout: layoutOk ? rawGame.layout : defaultLayoutFor(players.length),
           turn: ids.has(rawGame.turn.activePlayerId)
             ? rawGame.turn

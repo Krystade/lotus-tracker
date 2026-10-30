@@ -85,6 +85,35 @@ export function playBeep(volume = 0.5): void {
   }
 }
 
+/**
+ * One soft blip for the 0:30 / 0:10 warnings: the same sine voice as the
+ * chime, shorter and at half its level, so the table hears time running
+ * down before it runs out rather than being startled at 0:00.
+ */
+export function playTick(volume = 0.5, urgent = false): void {
+  const c = getCtx();
+  if (!c) return;
+  const peak = MAX_GAIN * 0.5 * Math.max(0, Math.min(1, volume)) ** 2;
+  if (peak <= 0) return;
+  if (c.state === "suspended") c.resume().catch(() => undefined);
+  try {
+    const start = c.currentTime + 0.01;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "sine";
+    osc.frequency.value = urgent ? 1175 : 880;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(peak, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(start);
+    osc.stop(start + 0.25);
+  } catch {
+    // ignore
+  }
+}
+
 /** Vibrate where supported (Android Chrome). iOS Safari has no Vibration API. */
 export function vibrate(pattern: number | number[] = [120, 60, 120]): void {
   try {

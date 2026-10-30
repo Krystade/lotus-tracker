@@ -90,6 +90,8 @@ export interface Settings {
   soundOn: boolean;
   /** Loudness of the 0:00 chime, 0..1. */
   alertVolume: number;
+  /** Soft tick and ring colour change at 0:30 and 0:10. */
+  turnWarnOn: boolean;
   vibrateOn: boolean;
   keepAwake: boolean;
   turnTimerEnabled: boolean;
@@ -119,6 +121,38 @@ export interface GameState {
   turn: TurnState;
   gameElapsedSec: number;
   gameTimerRunning: boolean;
+  /** Shared markers (monarch, initiative...) and who holds them. */
+  stickers: StickerHold[];
+  /** What happened this game, oldest first. */
+  log: LogEntry[];
+}
+
+export type StickerId = "monarch" | "initiative" | "blessing" | "ring";
+
+export interface StickerHold {
+  id: StickerId;
+  holder: string;
+}
+
+export type LogKind = "life" | "cmdr" | "poison" | "sticker";
+
+export interface LogEntry {
+  /** Unique within a game; React key and undo target. */
+  n: number;
+  kind: LogKind;
+  playerId: string;
+  /** Change in life / commander damage / poison. 0 for stickers. */
+  delta: number;
+  /** The value after the change (life, damage from `from`, poison). */
+  value: number;
+  /** Commander damage source, or the sticker's previous holder. */
+  from?: string;
+  sticker?: StickerId;
+  turn: number;
+  /** Game clock at the time, seconds. */
+  at: number;
+  /** Wall clock of the last edit, ms; rapid taps merge into one entry. */
+  ts: number;
 }
 
 /** Lethal thresholds per current Commander rules. */
@@ -135,6 +169,8 @@ export interface GameSetup {
   layout: LayoutConfig;
   turnTimerEnabled: boolean;
   defaultTurnBudgetSec: number;
+  /** Who sat where, by seat. Absent on setups saved before groups existed. */
+  players?: { name: string; look?: string }[];
 }
 
 
@@ -146,6 +182,7 @@ export const DEFAULT_SETTINGS: Settings = {
   turnTimerPlacement: "drag",
   soundOn: true,
   alertVolume: 0.5,
+  turnWarnOn: true,
   vibrateOn: true,
   keepAwake: true,
   turnTimerEnabled: true,

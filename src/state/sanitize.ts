@@ -74,6 +74,7 @@ export function sanitizeSettings(v: unknown, defaults?: Settings): Settings {
       s.turnTimerPlacement === "drag" || s.turnTimerPlacement === "corner"
         ? s.turnTimerPlacement
         : d.turnTimerPlacement,
+    turnWarnOn: bool(s.turnWarnOn, d.turnWarnOn),
     soundOn: bool(s.soundOn, d.soundOn),
     vibrateOn: bool(s.vibrateOn, d.vibrateOn),
     keepAwake: bool(s.keepAwake, d.keepAwake),

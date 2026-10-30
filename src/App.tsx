@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "./state/store";
 import { useTicker } from "./hooks/useTicker";
 import { useWakeLock } from "./hooks/useWakeLock";
-import { fireTurnExpiredAlert, unlockAudio } from "./util/alert";
+import { fireTurnExpiredAlert, playTick, unlockAudio } from "./util/alert";
+import { warningCrossed } from "./game/turn";
 import { Board } from "./components/Board";
 import { CenterMenu } from "./components/CenterMenu";
 import { PlayerDetail } from "./components/PlayerDetail";
@@ -12,6 +13,7 @@ import { LayoutPicker } from "./components/LayoutPicker";
 import { DicePanel } from "./components/DicePanel";
 import { ArcadeSeatPicker } from "./components/ArcadeSeatPicker";
 import { RandomFirstOverlay } from "./components/RandomFirstOverlay";
+import { LogPanel } from "./components/LogPanel";
 
 type Overlay =
   | null
@@ -20,7 +22,8 @@ type Overlay =
   | "layout"
   | "dice"
   | "random"
-  | "arcade";
+  | "arcade"
+  | "log";
 
 export default function App() {
   useTicker();
@@ -40,6 +43,16 @@ export default function App() {
     }
     wasExpired.current = expired;
   }, [expired, soundOn, vibrateOn, alertVolume]);
+
+  // Soft tick on the way down past 0:30 and 0:10.
+  const remaining = useStore((s) => s.game.turn.remainingSec);
+  const warnOn = useStore((s) => s.settings.turnWarnOn && s.settings.turnTimerEnabled);
+  const lastRemaining = useRef(remaining);
+  useEffect(() => {
+    const mark = warningCrossed(lastRemaining.current, remaining);
+    lastRemaining.current = remaining;
+    if (mark !== null && warnOn && soundOn) playTick(alertVolume, mark === 10);
+  }, [remaining, warnOn, soundOn, alertVolume]);
 
   // Unlock audio on the first user interaction (iOS autoplay policy).
   useEffect(() => {
@@ -111,6 +124,7 @@ export default function App() {
         onDice={() => setOverlay("dice")}
         onArcade={() => setOverlay("arcade")}
         onRandomFirst={() => setOverlay("random")}
+        onLog={() => setOverlay("log")}
       />
 
       {detailId && (
@@ -131,6 +145,7 @@ export default function App() {
         <SettingsPanel onClose={() => setOverlay(null)} />
       )}
       {overlay === "layout" && <LayoutPicker onClose={() => setOverlay(null)} />}
+      {overlay === "log" && <LogPanel onClose={() => setOverlay(null)} />}
       {overlay === "dice" && <DicePanel onClose={() => setOverlay(null)} />}
       {overlay === "arcade" && (
         <ArcadeSeatPicker

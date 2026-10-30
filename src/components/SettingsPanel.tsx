@@ -203,6 +203,14 @@ export function SettingsPanel({ onClose }: Props) {
               </>
             )}
             <label className="toggle">
+              <span>Warn at 0:30 and 0:10</span>
+              <input
+                type="checkbox"
+                checked={settings.turnWarnOn}
+                onChange={(e) => update({ turnWarnOn: e.target.checked })}
+              />
+            </label>
+            <label className="toggle">
               <span>Vibrate at 0:00 (Android)</span>
               <input
                 type="checkbox"

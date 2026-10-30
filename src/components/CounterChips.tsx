@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { POISON_LETHAL, type CounterKey, type CounterSet } from "../state/types";
 
 /** Which counter a chip refers to, for the quick-adjust popover. */
@@ -24,6 +25,8 @@ interface Props {
   counters: CounterSet;
   /** When given, chips become tappable and open the quick-adjust popover. */
   onPick?: (ref: CounterRef) => void;
+  /** Stickers held by this player, drawn at the front of the row. */
+  lead?: ReactNode[];
 }
 
 /**
@@ -32,10 +35,10 @@ interface Props {
  * in play are drawn — an untouched tile stays clean and chips appear as the
  * game develops.
  */
-export function CounterChips({ counters, onPick }: Props) {
+export function CounterChips({ counters, onPick, lead = [] }: Props) {
   const standard = COUNTER_LABELS.filter(([key]) => counters[key] > 0);
   const custom = counters.custom.filter((c) => c.value > 0);
-  if (standard.length === 0 && custom.length === 0) return null;
+  if (standard.length === 0 && custom.length === 0 && lead.length === 0) return null;
 
   const total = standard.length + custom.length;
 
@@ -73,6 +76,7 @@ export function CounterChips({ counters, onPick }: Props) {
     // With more than one chip the row spreads across the tile's whole bottom
     // edge; a lone chip keeps its natural width rather than stretching.
     <div className={`tile__chips${total > 1 ? " tile__chips--multi" : ""}`}>
+      {lead}
       {standard.map(([key, short, full]) =>
         chip(
           key,

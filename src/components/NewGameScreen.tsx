@@ -99,6 +99,11 @@ export function NewGameScreen({ onClose }: Props) {
                           ? `${Math.round(st.defaultTurnBudgetSec / 60)}m`
                           : "no timer"}
                       </em>
+                      {st.players && st.players.length > 0 && (
+                        <em className="setup__who">
+                          {st.players.map((p) => p.name).join(", ")}
+                        </em>
+                      )}
                     </button>
                     <button
                       className="setup__del"
@@ -246,7 +251,7 @@ export function NewGameScreen({ onClose }: Props) {
               <input
                 className="panel__addinput"
                 value={setupName}
-                placeholder="Save this setup as…"
+                placeholder="Save this group & setup as…"
                 maxLength={24}
                 onChange={(e) => setSetupName(e.target.value)}
                 aria-label="setup name"

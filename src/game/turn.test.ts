@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceTurn, nextActivePlayerId, tickTurn } from "./turn";
+import { advanceTurn, nextActivePlayerId, tickTurn, warningCrossed, warnLevel } from "./turn";
 import type { Player, TurnState } from "../state/types";
 
 function mkPlayers(ids: string[], eliminated: string[] = []): Player[] {
@@ -214,5 +214,23 @@ describe("passing turns past players who are dead but not flagged", () => {
   it("a revived player rejoins the rotation", () => {
     const players = [dead("p0", {}), dead("p1", { life: 3 }), dead("p2", {}), dead("p3", {})];
     expect(nextActivePlayerId(players, "p0", ring)).toBe("p1");
+  });
+});
+
+describe("turn warnings", () => {
+  it("fires once on the way down past 0:30 and 0:10", () => {
+    expect(warningCrossed(30.2, 29.9)).toBe(30);
+    expect(warningCrossed(29.9, 29.6)).toBeNull();
+    expect(warningCrossed(10.1, 9.9)).toBe(10);
+  });
+  it("never on a refill, nor at 0:00 where the chime takes over", () => {
+    expect(warningCrossed(5, 300)).toBeNull();
+    expect(warningCrossed(0.2, 0)).toBeNull();
+  });
+  it("takes the lower mark when one tick jumps both", () => {
+    expect(warningCrossed(31, 9)).toBe(10);
+  });
+  it("colours by time left", () => {
+    expect([warnLevel(31), warnLevel(30), warnLevel(10), warnLevel(0)]).toEqual([null, "warn", "urgent", null]);
   });
 });

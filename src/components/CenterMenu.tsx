@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store";
 import { formatGameClock } from "../util/format";
+import { STICKERS } from "../game/stickers";
 
 interface Props {
   onNewGame: () => void;
@@ -9,6 +10,7 @@ interface Props {
   onDice: () => void;
   onArcade: () => void;
   onRandomFirst: () => void;
+  onLog: () => void;
 }
 
 /** Center hexagon button + total game timer, and the pop-up action sheet. */
@@ -19,8 +21,15 @@ export function CenterMenu({
   onDice,
   onArcade,
   onRandomFirst,
+  onLog,
 }: Props) {
   const [open, setOpen] = useState(false);
+  // The sheet shows either the main actions or the sticker list.
+  const [stickerView, setStickerView] = useState(false);
+  const stickers = useStore((s) => s.game.stickers);
+  const players = useStore((s) => s.game.players);
+  const activeId = useStore((s) => s.game.turn.activePlayerId);
+  const giveSticker = useStore((s) => s.giveSticker);
   const [confirmReset, setConfirmReset] = useState(false);
   const elapsed = useStore((s) => s.game.gameElapsedSec);
   const gameRunning = useStore((s) => s.game.gameTimerRunning);
@@ -34,6 +43,7 @@ export function CenterMenu({
   const close = () => {
     setOpen(false);
     setConfirmReset(false);
+    setStickerView(false);
   };
 
   useEffect(() => {
@@ -70,6 +80,38 @@ export function CenterMenu({
             role="dialog"
           >
             <div className="sheet__grip" />
+            {stickerView ? (
+              <>
+                <p className="sheet__note">
+                  Added to whoever's turn it is. Drag a sticker from one
+                  player's tile to another's to hand it over.
+                </p>
+                <div className="sheet__group">
+                  {STICKERS.map((st) => {
+                    const held = stickers.find((h) => h.id === st.id);
+                    const who = players.find((p) => p.id === held?.holder);
+                    return (
+                      <button
+                        key={st.id}
+                        className="sheet__row"
+                        onClick={act(() =>
+                          giveSticker(st.id, held ? null : activeId),
+                        )}
+                      >
+                        {st.icon}{" "}
+                        {held
+                          ? `Remove ${st.name}${who ? ` (${who.name})` : ""}`
+                          : `Add ${st.name}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="sheet__close" onClick={() => setStickerView(false)}>
+                  Back
+                </button>
+              </>
+            ) : (
+            <>
             <button className="sheet__row sheet__row--primary" onClick={act(passTurn)}>
               ⏭ Pass turn
             </button>
@@ -85,6 +127,9 @@ export function CenterMenu({
               </button>
             </div>
             <div className="sheet__group">
+              <button className="sheet__row" onClick={() => setStickerView(true)}>
+                👑 Stickers…
+              </button>
               <button className="sheet__row" onClick={act(onRandomFirst)}>
                 ⇆ Random first player
               </button>
@@ -96,6 +141,9 @@ export function CenterMenu({
               </button>
             </div>
             <div className="sheet__group">
+              <button className="sheet__row" onClick={act(onLog)}>
+                ☰ Game log
+              </button>
               <button className="sheet__row" onClick={act(onLayouts)}>
                 ▦ Layout
               </button>
@@ -125,6 +173,8 @@ export function CenterMenu({
             <button className="sheet__close" onClick={close}>
               Close
             </button>
+            </>
+            )}
           </div>
         </div>
       )}

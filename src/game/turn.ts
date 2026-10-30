@@ -89,3 +89,27 @@ export function tickTurn(turn: TurnState, deltaSec: number): TurnState {
     expired: expired || turn.expired,
   };
 }
+
+/** Seconds-left marks that get a warning tick, loudest last. */
+export const WARN_AT = [30, 10] as const;
+
+/**
+ * The warning mark the clock just ran down past, if any. Only a downward
+ * crossing counts, so passing the turn (which refills the clock) or resuming
+ * an already-low clock never ticks.
+ */
+export function warningCrossed(prevSec: number, nextSec: number): number | null {
+  let hit: number | null = null;
+  for (const mark of WARN_AT) {
+    if (prevSec > mark && nextSec <= mark && nextSec > 0) hit = mark;
+  }
+  return hit;
+}
+
+/** "warn" from 0:30, "urgent" from 0:10, for the pill's colour. */
+export function warnLevel(remainingSec: number): "warn" | "urgent" | null {
+  if (remainingSec <= 0) return null;
+  if (remainingSec <= WARN_AT[1]) return "urgent";
+  if (remainingSec <= WARN_AT[0]) return "warn";
+  return null;
+}
