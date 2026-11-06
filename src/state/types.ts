@@ -45,6 +45,12 @@ export interface Player {
   timerPos?: TilePos;
   /** Chosen tile look; falls back to the flat seat colour when absent. */
   look?: string;
+  /**
+   * Counters shown on the tile even at 0, because someone has used them:
+   * a CounterKey, "custom:<id>" or "cmdr:<opponent id>". Anything above 0
+   * shows regardless.
+   */
+  pinned?: string[];
 }
 
 /** A saved player, reusable across games. Stored on this device only. */
@@ -131,7 +137,13 @@ export type StickerId = "monarch" | "initiative" | "blessing" | "ring";
 
 export interface StickerHold {
   id: StickerId;
+  /** The seat whose tile it sits over; it faces that seat. */
   holder: string;
+  /** Centre, as a fraction of the board (0..1 each way). */
+  x: number;
+  y: number;
+  /** Pinch size; 1 is the default. */
+  scale: number;
 }
 
 export type LogKind = "life" | "cmdr" | "poison" | "sticker";

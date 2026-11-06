@@ -79,12 +79,12 @@ describe("stickers", () => {
     s().giveSticker("monarch", "p0");
     s().giveSticker("initiative", "p0");
     s().giveSticker("monarch", "p3");
-    expect(s().game.stickers).toEqual([
-      { id: "initiative", holder: "p0" },
-      { id: "monarch", holder: "p3" },
+    expect(s().game.stickers.map((x) => [x.id, x.holder])).toEqual([
+      ["initiative", "p0"],
+      ["monarch", "p3"],
     ]);
     s().giveSticker("monarch", null);
-    expect(s().game.stickers).toEqual([{ id: "initiative", holder: "p0" }]);
+    expect(s().game.stickers.map((x) => [x.id, x.holder])).toEqual([["initiative", "p0"]]);
   });
 
   it("leaves the table with a seat that is removed", () => {

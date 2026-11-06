@@ -151,7 +151,7 @@ const cause = skull
   ? (await page.locator(".tile__skull-cause").first().innerText()).trim()
   : "";
 const counterChips = await page
-  .locator(".tile__chips")
+  .locator(".tcount-row")
   .first()
   .innerText()
   .catch(() => "");
@@ -162,7 +162,7 @@ check(
 );
 check(
   "lethal poison chip is flagged",
-  (await page.locator(".tile__chip--warn").count()) >= 1,
+  (await page.locator(".tcount--warn").count()) >= 1,
 );
 check("10 poison recorded", poisonVal === 10, `poison=${poisonVal}`);
 check("lethal tile shows skull", skull);
@@ -240,8 +240,8 @@ check(
   `life=${gReset.players[0].life} poison=${gReset.players[0].counters.poison}`,
 );
 check(
-  "chips disappear once counters are back to zero",
-  (await page.locator(".tile__chip").count()) === 0,
+  "tile counters clear on reset",
+  (await page.locator(".tcount").count()) === 0,
 );
 
 // --- 6/9 underline + detail button ------------------------------------

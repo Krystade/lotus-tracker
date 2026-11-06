@@ -1,6 +1,7 @@
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useStore } from "../state/store";
 import { PlayerTile } from "./PlayerTile";
+import { StickerLayer } from "./StickerLayer";
 
 interface Props {
   onOpenDetail: (playerId: string) => void;
@@ -12,6 +13,7 @@ interface Props {
 /** Lays out the player tiles on a CSS grid defined by the active layout. */
 export function Board({ onOpenDetail, arcadeSeats, onCloseArcade }: Props) {
   const layout = useStore((s) => s.game.layout);
+  const ref = useRef<HTMLDivElement>(null);
 
   const style: CSSProperties = {
     gridTemplateRows: `repeat(${layout.rows}, 1fr)`,
@@ -19,7 +21,7 @@ export function Board({ onOpenDetail, arcadeSeats, onCloseArcade }: Props) {
   };
 
   return (
-    <div className="board" style={style}>
+    <div className="board" style={style} ref={ref}>
       {layout.placements.map((placement) => (
         <PlayerTile
           key={placement.playerId}
@@ -29,6 +31,7 @@ export function Board({ onOpenDetail, arcadeSeats, onCloseArcade }: Props) {
           onCloseArcade={() => onCloseArcade(placement.playerId)}
         />
       ))}
+      <StickerLayer boardRef={ref} />
     </div>
   );
 }

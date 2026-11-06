@@ -83,8 +83,9 @@ export function CenterMenu({
             {stickerView ? (
               <>
                 <p className="sheet__note">
-                  Added to whoever's turn it is. Drag a sticker from one
-                  player's tile to another's to hand it over.
+                  Added to whoever's turn it is. Drag a sticker anywhere on
+                  the board -- whoever's tile it sits on holds it. Pinch with
+                  two fingers to resize.
                 </p>
                 <div className="sheet__group">
                   {STICKERS.map((st) => {

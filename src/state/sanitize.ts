@@ -15,7 +15,7 @@ import type {
  * assumes the type. Two real examples, both of which blank the entire app --
  * React unmounts the tree on an uncaught render error:
  *
- *   counters.custom as a string -> CounterChips calls .filter() on it, and the
+ *   counters.custom as a string -> the tile counters call .filter() on it, and the
  *   board crashes the instant it renders, before the user can touch anything.
  *
  *   settings.effectStrength as null -> SettingsPanel calls .toFixed() on it and

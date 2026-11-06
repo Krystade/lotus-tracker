@@ -29,7 +29,7 @@ import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 import { isBetter } from "../game/arcade/bests";
 import { appendLog, diffGame, sanitizeLog } from "../game/log";
-import { giveSticker, sanitizeStickers } from "../game/stickers";
+import { giveSticker, placeSticker, sanitizeStickers } from "../game/stickers";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
 // failed write never breaks the in-memory game (which is the source of truth).
@@ -80,6 +80,12 @@ function createPlayer(seat: number, startingLife: number): Player {
     commanderDamage: {},
     eliminated: false,
   };
+}
+
+/** Mark a counter as in use, so the tile keeps showing it at 0. */
+function pin(p: Player, key: string): Player {
+  const pinned = p.pinned ?? [];
+  return pinned.includes(key) ? p : { ...p, pinned: [...pinned, key] };
 }
 
 function createPlayers(count: number, startingLife: number): Player[] {
@@ -214,6 +220,10 @@ export interface StoreState {
   setFirstPlayer: (playerId: string) => void;
   /** Hand a sticker to a seat, or take it off the table with null. */
   giveSticker: (id: StickerId, holder: string | null) => void;
+  /** Stop showing a counter on the tile (it shows again once used). */
+  unpinCounter: (playerId: string, key: string) => void;
+  /** Move / resize a sticker on the board (fractions of the board). */
+  placeSticker: (id: StickerId, pos: { x: number; y: number; scale: number }) => void;
 
   // turns & timers
   passTurn: () => void;
@@ -384,6 +394,7 @@ export const useStore = create<StoreState>()(
             counters: emptyCounters(),
             commanderDamage: {},
             eliminated: false,
+            pinned: [],
           }));
           const budget = s.settings.defaultTurnBudgetSec;
           return {
@@ -435,7 +446,7 @@ export const useStore = create<StoreState>()(
           game: {
             ...s.game,
             players: updatePlayer(s.game.players, playerId, (p) => ({
-              ...p,
+              ...pin(p, key),
               counters: {
                 ...p.counters,
                 [key]: clampCounter(p.counters[key] + delta),
@@ -449,7 +460,7 @@ export const useStore = create<StoreState>()(
           game: {
             ...s.game,
             players: updatePlayer(s.game.players, playerId, (p) => ({
-              ...p,
+              ...pin(p, "tax"),
               counters: {
                 ...p.counters,
                 tax: clampCounter(
@@ -464,16 +475,20 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           game: {
             ...s.game,
-            players: updatePlayer(s.game.players, playerId, (p) => ({
-              ...p,
-              counters: {
-                ...p.counters,
-                custom: [
-                  ...p.counters.custom,
-                  { id: uid(), name: name || "Counter", value: 0 },
-                ],
-              },
-            })),
+            players: updatePlayer(s.game.players, playerId, (p) => {
+              // Adding one is using it: it goes on the tile straight away.
+              const id = uid();
+              return {
+                ...pin(p, `custom:${id}`),
+                counters: {
+                  ...p.counters,
+                  custom: [
+                    ...p.counters.custom,
+                    { id, name: name || "Counter", value: 0 },
+                  ],
+                },
+              };
+            }),
           },
         })),
 
@@ -482,7 +497,7 @@ export const useStore = create<StoreState>()(
           game: {
             ...s.game,
             players: updatePlayer(s.game.players, playerId, (p) => ({
-              ...p,
+              ...pin(p, `custom:${counterId}`),
               counters: {
                 ...p.counters,
                 custom: p.counters.custom.map((c) =>
@@ -501,6 +516,7 @@ export const useStore = create<StoreState>()(
             ...s.game,
             players: updatePlayer(s.game.players, playerId, (p) => ({
               ...p,
+              pinned: (p.pinned ?? []).filter((k) => k !== `custom:${counterId}`),
               counters: {
                 ...p.counters,
                 custom: p.counters.custom.filter((c) => c.id !== counterId),
@@ -519,7 +535,7 @@ export const useStore = create<StoreState>()(
               const nextVal = clampCounter(current + delta);
               const appliedDelta = nextVal - current;
               return {
-                ...p,
+                ...pin(p, `cmdr:${fromId}`),
                 commanderDamage: { ...p.commanderDamage, [fromId]: nextVal },
                 life: applyLifeDelta(p.life, -appliedDelta),
               };
@@ -586,7 +602,29 @@ export const useStore = create<StoreState>()(
 
       giveSticker: (id, holder) =>
         set((s) => ({
-          game: { ...s.game, stickers: giveSticker(s.game.stickers, id, holder) },
+          game: {
+            ...s.game,
+            stickers: giveSticker(s.game.stickers, s.game.layout, id, holder),
+          },
+        })),
+
+      unpinCounter: (playerId, key) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            players: updatePlayer(s.game.players, playerId, (p) => ({
+              ...p,
+              pinned: (p.pinned ?? []).filter((k) => k !== key),
+            })),
+          },
+        })),
+
+      placeSticker: (id, pos) =>
+        set((s) => ({
+          game: {
+            ...s.game,
+            stickers: placeSticker(s.game.stickers, s.game.layout, id, pos),
+          },
         })),
 
       // Choose who takes the first turn (used by "random first player").
@@ -759,6 +797,9 @@ export const useStore = create<StoreState>()(
                 id: `p${i}`, // normalize even if a persisted id is corrupt
                 counters: sanitizeCounters(pl?.counters),
                 commanderDamage: pl?.commanderDamage ?? {},
+                pinned: Array.isArray(pl?.pinned)
+                  ? pl.pinned.filter((k): k is string => typeof k === "string")
+                  : [],
               }))
             : current.game.players;
         const rawGame = p.game
@@ -778,11 +819,12 @@ export const useStore = create<StoreState>()(
             players.map((pl) => pl.id),
           );
         const ids = new Set(players.map((pl) => pl.id));
+        const layout = layoutOk ? rawGame.layout : defaultLayoutFor(players.length);
         const game = {
           ...rawGame,
-          stickers: sanitizeStickers(rawGame.stickers, ids),
+          stickers: sanitizeStickers(rawGame.stickers, ids, layout),
           log: sanitizeLog(rawGame.log),
-          layout: layoutOk ? rawGame.layout : defaultLayoutFor(players.length),
+          layout,
           turn: ids.has(rawGame.turn.activePlayerId)
             ? rawGame.turn
             : { ...rawGame.turn, activePlayerId: players[0]?.id ?? "p0" },

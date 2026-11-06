@@ -145,17 +145,23 @@ input {
 
 /* Eliminated tiles are out — drop their controls so live tiles pop. */
 .tile--out .tile__adj,
-.tile--out .tile__chips {
+.tile--out .tcount-row {
   display: none;
 }
 
+/* --tcount-h is the height the counter rows take along the bottom (set by
+   CounterSteppers). The number centres in what is left and shrinks to fit
+   it, so counters never sit on top of the life total. */
 .tile__life {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--tcount-h, 0px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(3rem, 38cqmin, 16rem);
+  font-size: min(
+    clamp(3rem, 38cqmin, 16rem),
+    calc((var(--lh, 100cqh) - var(--tcount-h, 0px)) * 0.62)
+  );
   font-weight: 800;
   line-height: 1;
   pointer-events: none;
@@ -242,95 +248,131 @@ input {
   opacity: 0.85;
 }
 
-/* Counter chips and ⋯ live on the tile's OUTER edge (content-bottom, nearest
-   the player) so they never collide with the center hex/seam. Counters in play
-   are shown here so they can be read — and adjusted — without opening the
-   detail panel. */
-.tile__chips {
+/* Counters live on the tile's OUTER edge (content-bottom, nearest the
+   player), clear of the centre hex, each with its own - and + so nothing
+   needs a menu mid-game. The row wraps upward as more come into play. */
+.tcount-row {
   position: absolute;
   bottom: 6px;
-  left: 10px;
-  /* Clear of the detail button in the corner; otherwise the row owns the
-     tile's whole bottom edge. */
+  left: 8px;
+  /* Clear of the detail button in the corner. */
   right: 58px;
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  /* Anchored at the bottom with no top, so it grows upward as rows are
+     added. Past 55% of the tile it scrolls rather than bury the number. */
+  max-height: calc(var(--lh, 100cqh) * 0.55);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
-
-/* Several counters spread evenly across the bottom; a lone chip keeps its
-   natural width instead of stretching into a banner. */
-/* Stickers lead the bottom row: big enough to grab and drag, and kept out
-   of the +/- zones and the top edge the corner timer uses. */
-.tile__sticker {
-  flex: 0 0 auto;
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  font-size: 1.45rem;
-  line-height: 1;
-  padding: 0;
-  touch-action: none;
-  cursor: grab;
-}
-.tile__sticker--lifted {
-  opacity: 0.35;
-}
-
-.sticker-ghost {
-  position: fixed;
-  z-index: 50;
-  transform: translate(-50%, -70%) scale(1.5);
-  font-size: 1.6rem;
-  line-height: 1;
-  pointer-events: none;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
-}
-.sticker-drop {
-  position: fixed;
-  z-index: 49;
-  border-radius: 22px;
-  box-shadow: inset 0 0 0 4px #fff, 0 0 24px rgba(255, 255, 255, 0.5);
-  pointer-events: none;
-}
-
-.tile__chips--multi .tile__chip {
-  flex: 1 1 auto;
-  justify-content: center;
-}
-
-.tile__chip {
+.tcount {
+  /* Line breaks are decided on the base size, so it is small: two share a
+     row even on a 6-player tile, then they grow into the space. A lone one
+     stays a control, not a banner. */
+  flex: 1 1 84px;
+  min-width: 84px;
+  max-width: 140px;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  border: none;
-  background: rgba(0, 0, 0, 0.34);
-  color: currentColor;
-  border-radius: 999px;
-  padding: 5px 11px;
-  font-size: 0.8rem;
+  align-items: stretch;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.42);
+  overflow: hidden;
   font-weight: 800;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-  font-family: inherit;
 }
-
-/* The turn pill is draggable and may be parked over the row; chips sit above
-   it so they stay readable and tappable. */
-.tile__chip:active {
-  transform: scale(0.94);
-}
-
-/* Poison at the lethal threshold, matching the detail panel's warning row. */
-.tile__chip--warn {
+.tcount--warn {
   background: rgba(255, 110, 135, 0.95);
   color: #1a0308;
+}
+.tcount__btn {
+  flex: 0 0 27px;
+  width: 27px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  touch-action: manipulation;
+}
+.tcount__btn:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+.tcount__btn--hide {
+  font-size: 0.95rem;
+  opacity: 0.6;
+}
+/* Label over value, so the control is narrow enough for two per row. */
+.tcount__val {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+.tcount__label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.6rem;
+  letter-spacing: 0.3px;
+  opacity: 0.85;
+}
+.tcount__val b {
+  font-size: 0.95rem;
+  margin-top: 2px;
+}
+.tcount__dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7);
+}
+
+/* Stickers float over the whole board (see StickerLayer). The layer lets
+   every touch through to the tiles except those that land on a sticker. */
+.board {
+  position: relative;
+}
+.stickers {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.sticker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+  font-size: 1.7rem;
+  line-height: 1;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+.sticker--held {
+  box-shadow: 0 0 0 3px #fff, 0 8px 22px rgba(0, 0, 0, 0.6);
 }
 
 /* Reads as a control rather than decoration: it is the only way into a
@@ -1373,75 +1415,6 @@ input[type="text"] {
   padding-bottom: 0.04em;
   /* Keeps adjacent marks (69, 96) from fusing into one continuous rule. */
   margin: 0 0.03em;
-}
-
-/* ---------- counter quick-adjust ---------- */
-/* Small popover for nudging one counter, opened by tapping its chip. Rotated
-   to the seat by .rot-wrap, same as the detail panel. */
-.quick {
-  width: min(76vw, 260px);
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-radius: 18px;
-  overflow: hidden;
-  background: var(--panel);
-  /* Explicit: the popover renders inside the tile, which sets `color` to suit
-     its seat colour — on a light seat that is near-black, which would put dark
-     text on this dark panel. */
-  color: #fff;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-}
-
-.quick__head {
-  padding: 10px 14px;
-  font-weight: 800;
-  font-size: 0.95rem;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  text-align: center;
-}
-
-.quick__body {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px;
-}
-
-.quick__btn {
-  flex: 0 0 auto;
-  width: 68px;
-  height: 68px;
-  border: none;
-  border-radius: 18px;
-  background: var(--row);
-  color: #fff;
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.quick__btn:active {
-  background: var(--panel-2);
-}
-
-.quick__val {
-  flex: 1 1 auto;
-  text-align: center;
-  font-size: 2.4rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.quick__done {
-  width: 100%;
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: transparent;
-  color: var(--muted);
-  padding: 12px;
-  font-weight: 800;
-  font-size: 0.9rem;
 }
 
 /* ---------- damage / heal / death feedback ---------- */

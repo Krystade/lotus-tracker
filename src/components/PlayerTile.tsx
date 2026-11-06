@@ -14,11 +14,9 @@ import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
 import { resolveLook } from "../layout/looks";
 import { useLifeFeedback } from "../hooks/useLifeFeedback";
-import { CounterChips, type CounterRef } from "./CounterChips";
-import { CounterQuickAdjust } from "./CounterQuickAdjust";
+import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
-import { StickerBadge } from "./StickerBadge";
 import { junctionFor, type TileJunction } from "../layout/junction";
 import { warnLevel } from "../game/turn";
 import type { Placement, Rotation, TilePos } from "../state/types";
@@ -124,10 +122,7 @@ export function PlayerTile({
   const timerEnabled = useStore((s) => s.settings.turnTimerEnabled);
   const timerPlacement = useStore((s) => s.settings.turnTimerPlacement);
   const warnOn = useStore((s) => s.settings.turnWarnOn);
-  const allStickers = useStore((s) => s.game.stickers);
   const layout = useStore((s) => s.game.layout);
-  // Which counter chip, if any, has its quick-adjust popover open.
-  const [quickCounter, setQuickCounter] = useState<CounterRef | null>(null);
   // Share of the turn budget still on the clock, for the countdown ring.
   const turnFraction =
     turn.budgetSec > 0
@@ -379,15 +374,7 @@ export function PlayerTile({
           </button>
         )}
 
-        <CounterChips
-          counters={player.counters}
-          onPick={setQuickCounter}
-          lead={allStickers
-            .filter((st) => st.holder === pid)
-            .map((st) => (
-              <StickerBadge key={st.id} id={st.id} holder={pid} />
-            ))}
-        />
+        <CounterSteppers player={player} />
 
         <button
           className="tile__more"
@@ -436,14 +423,6 @@ export function PlayerTile({
             only this tile, already facing the right way. */}
         {arcadeOpen && <ArcadeTile playerId={pid} onClose={onCloseArcade} />}
       </div>
-
-      {quickCounter && (
-        <CounterQuickAdjust
-          playerId={pid}
-          target={quickCounter}
-          onClose={() => setQuickCounter(null)}
-        />
-      )}
     </div>
   );
 }
