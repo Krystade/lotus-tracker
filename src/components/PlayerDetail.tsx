@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
 import { LookPicker } from "./LookPicker";
 import { LookPreview } from "./LookPreview";
+import { RulesLookup } from "./RulesLookup";
 import { resolveLook } from "../layout/looks";
 import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
@@ -62,6 +63,9 @@ export function PlayerDetail({
   const [nameDraft, setNameDraft] = useState("");
   const [newCounter, setNewCounter] = useState("");
   const [lookOpen, setLookOpen] = useState(false);
+  // Keyword / card-ruling lookup, shown in place of the panel body so it is
+  // already turned to face this seat.
+  const [lookup, setLookup] = useState<"keywords" | "cards" | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   const player = players.find((p) => p.id === playerId);
@@ -137,6 +141,10 @@ export function PlayerDetail({
         </div>
 
         <div className="panel__body">
+          {lookup ? (
+            <RulesLookup mode={lookup} onBack={() => setLookup(null)} />
+          ) : (
+          <>
           <section className="panel__section">
             <div className="panel__life">
               <span className="panel__life-num">{player.life}</span>
@@ -265,6 +273,15 @@ export function PlayerDetail({
             </section>
           )}
 
+          <section className="panel__section panel__lookups">
+            <button className="panel__games" onClick={() => setLookup("keywords")}>
+              📖 Keywords
+            </button>
+            <button className="panel__games" onClick={() => setLookup("cards")}>
+              ⚖ Card rulings
+            </button>
+          </section>
+
           <section className="panel__section">
             {/* Here as well as in the centre menu: a player who is bored
                 reaches for their own tile, not for the shared menu. */}
@@ -281,6 +298,8 @@ export function PlayerDetail({
               {player.eliminated ? "Eliminated ✓ (tap to revive)" : "Mark eliminated"}
             </button>
           </section>
+          </>
+          )}
         </div>
         </div>
       </div>
