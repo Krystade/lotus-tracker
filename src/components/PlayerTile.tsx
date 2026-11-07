@@ -18,7 +18,7 @@ import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
 import { junctionFor, type TileJunction } from "../layout/junction";
-import { farTopCorner } from "../game/stickers";
+import { seatHandleSpot, type SeatHandleSpot } from "../game/stickers";
 import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
 import { warnLevel } from "../game/turn";
@@ -53,6 +53,13 @@ const HEX_CLEARANCE = { left: 40, right: 40, up: 56, down: 50 };
 const HEX_HOLE = 50;
 
 const LOCAL_TO_SCREEN: Record<Rotation, Rotation> = { 0: 0, 90: 270, 180: 180, 270: 90 };
+
+/** The seat handle clear of the menu hexagon and clock (see seatHandleSpot). */
+function handleStyle(h: SeatHandleSpot): CSSProperties | undefined {
+  if (h.push) return { "--seat-at": `max(5px, calc(${h.push.px}px - ${h.push.behind} * var(--lw)))` } as CSSProperties;
+  if (h.room) return { "--seat-room": `calc(${h.room.ahead} * var(--lw) - ${h.room.px}px)` } as CSSProperties;
+  return undefined;
+}
 
 /**
  * "corner" mode: the timer fills the corner of the tile where the most seats
@@ -264,6 +271,7 @@ export function PlayerTile({
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
   const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...pill.live };
+  const handle = seatHandleSpot(layout, pid);
   const junction = pinnedToCorner ? junctionFor(layout, pid) : null;
   const corner = junction ? cornerTimer(junction, placement.rotation) : null;
   const pillScale = scale * (pillPos.scale ?? 1);
@@ -384,7 +392,8 @@ export function PlayerTile({
 
         {playerCount > 1 && !arcadeOpen && (!anyDrag || seatDrag) && (
           <button
-            className={`tile__seat tile__seat--${farTopCorner(layout, pid)}${seatDrag?.arming ? " is-arming" : ""}`}
+            className={`tile__seat tile__seat--${handle.side}${seatDrag?.arming ? " is-arming" : ""}`}
+            style={handleStyle(handle)}
             aria-label={`${player.name}: hold to move seat`}
             onPointerDown={(e) => {
               e.stopPropagation();

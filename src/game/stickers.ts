@@ -1,5 +1,5 @@
 import type { LayoutConfig, Placement, StickerHold, StickerId } from "../state/types";
-import { junctionFor } from "../layout/junction";
+import { HUB_REACH, boardHub, junctionFor } from "../layout/junction";
 
 export interface StickerDef {
   id: StickerId;
@@ -69,9 +69,11 @@ export function giveSticker(
  * that passes the turn.
  */
 function startSpot(layout: Grid, holder: string): { x: number; y: number } {
-  // Inset from the corner so the seat handle there stays uncovered.
-  const side = farTopCorner(layout, holder);
-  return tileSpot(layout, holder, side === "left" ? 0.3 : 0.7, 0.3);
+  // Inset from the corner so the seat handle there stays uncovered; where
+  // the handle slid along the edge past the hub, it sits right above that
+  // spot, so start lower.
+  const { side, push } = seatHandleSpot(layout, holder);
+  return tileSpot(layout, holder, side === "left" ? 0.3 : 0.7, push ? 0.45 : 0.3);
 }
 
 /**
@@ -93,6 +95,52 @@ export function farTopCorner(layout: Grid, holder: string): "left" | "right" {
   if (Math.abs(ly) < 1e-9 && lx > 1e-9 && lx < 1 - 1e-9) return "left";
   const far = (q: { x: number; y: number }) => Math.hypot(q.x - jx, q.y - jy);
   return far(b) > far(a) + 1e-9 ? "right" : "left";
+}
+
+/**
+ * Where a seat's handle sits, beyond the top corner farTopCorner picks: kept
+ * clear of the menu hexagon and the game clock under it, which sit on the
+ * board's hub. Only a hub on the line of the seat's own top edge can reach
+ * the handle there (anywhere else it is half a cell or more away):
+ *
+ * - on or behind the handle's corner -- the timer has the other corner and
+ *   the hub this one, as in a 4x2 with three seats down one side -- the
+ *   handle slides along the edge, `push.px` less `push.behind` of the seat's
+ *   width (--lw) from the corner, past the hexagon and clock;
+ * - partway along the edge, `room` caps the handle's size at `room.ahead` of
+ *   the width less `room.px`, so it ends before the clock or hexagon starts.
+ *
+ * The px are how far the hexagon and clock reach that way on screen.
+ */
+export interface SeatHandleSpot {
+  side: "left" | "right";
+  push?: { px: number; behind: number };
+  room?: { px: number; ahead: number };
+}
+
+/** The handle's inset from its corner, both ways (styles.css .tile__seat). */
+const HANDLE_INSET = 5;
+
+export function seatHandleSpot(layout: Grid, holder: string): SeatHandleSpot {
+  const side = farTopCorner(layout, holder);
+  const p = layout.placements.find((q) => q.playerId === holder);
+  if (!p) return { side };
+  const hub = boardHub(layout);
+  const { lx, ly } = localSpot(layout, holder, hub.x, hub.y);
+  if (Math.abs(ly) > 1e-9) return { side };
+  // From the handle's corner along the top edge, in fractions of the width.
+  const ahead = side === "left" ? lx : 1 - lx;
+  if (ahead >= 1 - 1e-9) return { side };
+  // The handle runs from its corner along the top edge: +x from the left
+  // corner, -x from the right one. Which way is that on screen?
+  const screen = (along: 1 | -1): keyof typeof HUB_REACH =>
+    p.rotation === 90 ? (along > 0 ? "down" : "up")
+    : p.rotation === 180 ? (along > 0 ? "left" : "right")
+    : p.rotation === 270 ? (along > 0 ? "up" : "down")
+    : along > 0 ? "right" : "left";
+  const away = side === "left" ? 1 : -1;
+  if (ahead <= 1e-9) return { side, push: { px: HUB_REACH[screen(away)], behind: Math.max(0, -ahead) } };
+  return { side, room: { px: HUB_REACH[screen(away === 1 ? -1 : 1)] + HANDLE_INSET, ahead } };
 }
 
 /**

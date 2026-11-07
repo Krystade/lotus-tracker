@@ -72,6 +72,15 @@ export function boardHub(layout: Grid): { x: number; y: number } {
 }
 
 /**
+ * How far the menu hexagon and the game clock under it reach from the hub,
+ * in screen px, plus a few px to spare. The column (54px hexagon, 5px gap,
+ * ~20px clock) is centred as a whole on the hub, so the hexagon's top is
+ * ~40px above it and the clock's foot ~44px below; sideways the hexagon is
+ * 27px and a long clock (1:23:45) ~33px.
+ */
+export const HUB_REACH = { left: 35, right: 35, up: 43, down: 47 };
+
+/**
  * Grid gaps to add to a board fraction f (a grid line or half-cell point) to
  * land on the same spot of the rendered board: n tracks share the board less
  * (n-1) gaps, so the point at u cells sits at u/n of the board plus

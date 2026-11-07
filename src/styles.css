@@ -3268,7 +3268,10 @@ input[type="text"] {
   /* 44px, but never down into the life +/- zones, which start 22% of the
      way down the tile as its player sees it (--lh): a short side seat gets
      a smaller handle rather than one that swallows the top of its minus. */
-  --seat: clamp(32px, calc(var(--lh, 100cqh) * 0.22 - 7px), 44px);
+  /* A seat with the hub partway along its top edge caps it at --seat-room,
+     so it ends before the menu hexagon and clock (seatHandleSpot). The
+     floor is for a short seat in a five-high column. */
+  --seat: clamp(24px, min(calc(var(--lh, 100cqh) * 0.22 - 7px), var(--seat-room, 44px)), 44px);
   top: 5px;
   z-index: 5;
   width: var(--seat);
@@ -3285,8 +3288,9 @@ input[type="text"] {
   -webkit-touch-callout: none;
   user-select: none;
 }
-.tile__seat--left { left: 5px; }
-.tile__seat--right { right: 5px; }
+/* --seat-at: slid along the top edge, past a hub on the handle's corner. */
+.tile__seat--left { left: var(--seat-at, 5px); }
+.tile__seat--right { right: var(--seat-at, 5px); }
 .tile__seat::after {
   content: "";
   position: absolute;
