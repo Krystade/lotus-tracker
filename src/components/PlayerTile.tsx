@@ -18,6 +18,8 @@ import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
 import { junctionFor, type TileJunction } from "../layout/junction";
+import { farTopCorner } from "../game/stickers";
+import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
 import { warnLevel } from "../game/turn";
 import type { Placement, Rotation, TilePos } from "../state/types";
@@ -28,6 +30,7 @@ interface Props {
   /** This seat has the pass-the-time games open over its tile. */
   arcadeOpen: boolean;
   onCloseArcade: () => void;
+  boardRef?: React.RefObject<HTMLDivElement>;
 }
 
 // Sits just above the counter-chip row that owns the bottom edge. Still
@@ -131,8 +134,12 @@ export function PlayerTile({
   onOpenDetail,
   arcadeOpen,
   onCloseArcade,
+  boardRef,
 }: Props) {
   const pid = placement.playerId;
+  const seatDrag = useSeatUi((s) => (s.drag?.pid === pid ? s.drag : null));
+  const anyDrag = useSeatUi((s) => !!s.drag && !s.drag.arming);
+  const playerCount = useStore((s) => s.game.players.length);
   const player = useStore((s) => s.game.players.find((p) => p.id === pid));
   const turn = useStore((s) => s.game.turn);
   // Last player standing (returns a stable id/null primitive — safe selector).
@@ -295,6 +302,7 @@ export function PlayerTile({
       }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
       data-pid={pid}
+      data-seat-src={seatDrag && !seatDrag.arming ? "" : undefined}
       data-style={look.styleId}
       data-fx={fx?.kind}
       data-fx-level={fx?.intensity}
@@ -373,6 +381,23 @@ export function PlayerTile({
         )}
 
         <CounterSteppers player={player} />
+
+        {playerCount > 1 && !arcadeOpen && (!anyDrag || seatDrag) && (
+          <button
+            className={`tile__seat tile__seat--${farTopCorner(layout, pid)}${seatDrag?.arming ? " is-arming" : ""}`}
+            aria-label={`${player.name}: hold to move seat`}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              startSeatDrag(pid, e.nativeEvent, boardRef?.current ?? null);
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" />
+            </svg>
+          </button>
+        )}
 
         <button
           className="tile__more"

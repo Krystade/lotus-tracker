@@ -69,15 +69,25 @@ export function giveSticker(
  * that passes the turn.
  */
 function startSpot(layout: Grid, holder: string): { x: number; y: number } {
-  const a = tileSpot(layout, holder, 0.2, 0.22);
-  const b = tileSpot(layout, holder, 0.8, 0.22);
+  // Inset from the corner so the seat handle there stays uncovered.
+  const side = farTopCorner(layout, holder);
+  return tileSpot(layout, holder, side === "left" ? 0.3 : 0.7, 0.3);
+}
+
+/**
+ * Which of a player's two upper corners (as they sit) is further from where
+ * the tiles meet. The turn timer owns the near one; the seat handle the far.
+ */
+export function farTopCorner(layout: Grid, holder: string): "left" | "right" {
+  const a = tileSpot(layout, holder, 0.1, 0.1);
+  const b = tileSpot(layout, holder, 0.9, 0.1);
   const p = layout.placements.find((q) => q.playerId === holder);
   const j = junctionFor(layout, holder);
-  if (!p || !j) return a;
+  if (!p || !j) return "left";
   const jx = (p.col - 1 + j.fx * p.colSpan) / layout.cols;
   const jy = (p.row - 1 + j.fy * p.rowSpan) / layout.rows;
   const far = (q: { x: number; y: number }) => Math.hypot(q.x - jx, q.y - jy);
-  return far(b) > far(a) + 1e-9 ? b : a;
+  return far(b) > far(a) + 1e-9 ? "right" : "left";
 }
 
 /**
@@ -155,4 +165,39 @@ export function sanitizeStickers(v: unknown, seats: Set<string>, layout: Grid): 
     });
   }
   return out;
+}
+
+/** The inverse of tileSpot: a board point in a seat's own frame. */
+export function localSpot(
+  layout: Grid,
+  playerId: string,
+  x: number,
+  y: number,
+): { lx: number; ly: number } {
+  const p = layout.placements.find((q) => q.playerId === playerId);
+  if (!p) return { lx: 0.5, ly: 0.5 };
+  const { x: cx, y: cy } = tileCentre(layout, playerId);
+  const w = p.colSpan / layout.cols;
+  const h = p.rowSpan / layout.rows;
+  const ex = x - cx;
+  const ey = y - cy;
+  switch (p.rotation) {
+    case 90:
+      return { lx: 0.5 + ey / h, ly: 0.5 - ex / w };
+    case 180:
+      return { lx: 0.5 - ex / w, ly: 0.5 - ey / h };
+    case 270:
+      return { lx: 0.5 - ey / h, ly: 0.5 + ex / w };
+    default:
+      return { lx: 0.5 + ex / w, ly: 0.5 + ey / h };
+  }
+}
+
+/** After the seats move, each sticker keeps its spot on its holder's tile. */
+export function remapStickers(stickers: StickerHold[], from: Grid, to: Grid): StickerHold[] {
+  return stickers.map((s) => {
+    const { lx, ly } = localSpot(from, s.holder, s.x, s.y);
+    const at = tileSpot(to, s.holder, clamp(lx, 0, 1), clamp(ly, 0, 1));
+    return { ...s, x: clamp(at.x, 0, 1), y: clamp(at.y, 0, 1) };
+  });
 }

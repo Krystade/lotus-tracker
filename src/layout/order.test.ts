@@ -183,3 +183,15 @@ describe("sortBySeatOrder", () => {
     expect(input.map((s) => s.id)).toEqual(["p2", "p0"]);
   });
 });
+
+describe("seat-table benches", () => {
+  it("a bench down the left passes bottom to top, to each player's left", () => {
+    const bench = {
+      id: "x", name: "x", builtIn: false, playerCount: 3, rows: 3, cols: 1,
+      placements: [0, 1, 2].map((i) => ({ playerId: `p${i}`, row: i + 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 90 as const })),
+    };
+    const order = clockwiseSeatOrder(bench);
+    const at = order.indexOf("p2");
+    expect([...order.slice(at), ...order.slice(0, at)]).toEqual(["p2", "p1", "p0"]);
+  });
+});

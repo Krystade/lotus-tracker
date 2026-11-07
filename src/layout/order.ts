@@ -1,4 +1,5 @@
 import type { LayoutConfig } from "../state/types";
+import { readTable, tableRing } from "./table";
 
 interface Seat {
   id: string;
@@ -46,9 +47,20 @@ export function clockwiseSeatOrder(layout: LayoutConfig): string[] {
   // (seats collinear with the centroid on the same side) break by seat index
   // so the result is always deterministic.
   const angle = (s: Seat) => Math.atan2(s.cy - centroidY, s.cx - centroidX);
-  return [...seats]
+  const sweep = [...seats]
     .sort((a, b) => angle(a) - angle(b) || a.seat - b.seat)
     .map((s) => s.id);
+
+  // A real seat table -- everyone on the side they face -- runs round the
+  // table itself. That differs from the sweep only when a long side is
+  // empty: a bench down the left passes bottom to top, to each player's left.
+  const read = readTable(layout);
+  if (read.exact && read.faithful) {
+    const ring = tableRing(read.table);
+    const at = ring.indexOf(sweep[0]);
+    if (ring.length === sweep.length && at >= 0) return [...ring.slice(at), ...ring.slice(0, at)];
+  }
+  return sweep;
 }
 
 /**

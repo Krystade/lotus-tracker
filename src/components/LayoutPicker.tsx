@@ -248,9 +248,9 @@ function CustomEditor({
     <div className="editor">
       <div className="editor__row">
         <span>Rows</span>
-        <Stepper value={rows} min={1} max={4} onChange={(v) => resize(v, cols)} />
+        <Stepper value={rows} min={1} max={Math.max(4, rows)} onChange={(v) => resize(v, cols)} />
         <span>Cols</span>
-        <Stepper value={cols} min={1} max={3} onChange={(v) => resize(rows, v)} />
+        <Stepper value={cols} min={1} max={Math.max(3, cols)} onChange={(v) => resize(rows, v)} />
       </div>
 
       <p className="panel__sublabel">Paint a seat, then tap cells:</p>

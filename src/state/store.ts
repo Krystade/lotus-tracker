@@ -30,7 +30,9 @@ import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 import { isBetter } from "../game/arcade/bests";
 import { appendLog, diffGame, sanitizeLog } from "../game/log";
-import { giveSticker, placeSticker, sanitizeStickers } from "../game/stickers";
+import { giveSticker, placeSticker, remapStickers, sanitizeStickers } from "../game/stickers";
+import { gapFree } from "../layout/table";
+import type { Rotation } from "./types";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
 // failed write never breaks the in-memory game (which is the source of truth).
@@ -237,6 +239,12 @@ export interface StoreState {
   // layout
   applyLayout: (layout: LayoutConfig) => void;
   saveCustomLayout: (name: string) => void;
+  /** Move seats on the board mid-game: players, counters and turn stay. */
+  rearrangeSeats: (layout: LayoutConfig) => void;
+  /** Turn one seat to face another edge of the table. */
+  setSeatRotation: (playerId: string, rotation: Rotation) => void;
+  /** Put the layout and stickers back exactly as they were. */
+  restoreSeats: (layout: LayoutConfig, stickers: GameState["stickers"]) => void;
   deleteCustomLayout: (id: string) => void;
 
   // settings
@@ -745,6 +753,41 @@ export const useStore = create<StoreState>()(
                 : { ...s.game.turn, activePlayerId: players[0].id },
             },
           };
+        }),
+
+      rearrangeSeats: (layout) =>
+        set((s) => {
+          const ids = s.game.players.map((p) => p.id);
+          if (!layoutCoversSeats(layout, ids) || !gapFree(layout)) return {};
+          return {
+            game: {
+              ...s.game,
+              layout,
+              stickers: remapStickers(s.game.stickers, s.game.layout, layout),
+            },
+          };
+        }),
+
+      setSeatRotation: (playerId, rotation) =>
+        set((s) => {
+          const old = s.game.layout;
+          if (!old.placements.some((p) => p.playerId === playerId)) return {};
+          const layout: LayoutConfig = {
+            ...old,
+            id: old.builtIn ? `arranged-${old.playerCount}` : old.id,
+            builtIn: false,
+            placements: old.placements.map((p) => (p.playerId === playerId ? { ...p, rotation } : p)),
+          };
+          return {
+            game: { ...s.game, layout, stickers: remapStickers(s.game.stickers, old, layout) },
+          };
+        }),
+
+      restoreSeats: (layout, stickers) =>
+        set((s) => {
+          const ids = s.game.players.map((p) => p.id);
+          if (!layoutCoversSeats(layout, ids)) return {};
+          return { game: { ...s.game, layout, stickers } };
         }),
 
       saveCustomLayout: (name) =>
