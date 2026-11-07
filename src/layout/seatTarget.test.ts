@@ -39,6 +39,18 @@ describe("pickTarget", () => {
     expect(t.kind === "move" && t.move.kind === "slot" && t.move.side).toBe("top");
   });
 
+  it("a handle armed right by the edge only has to reach it", () => {
+    // Armed 20px from the head: pushing a further 24px is off the board, and
+    // on a phone without a notch, off the screen. Reaching the edge counts.
+    const t = at(four, "p0", [160, 20], 170, 2);
+    expect(t.kind === "move" && t.move.kind === "slot" && t.move.side).toBe("top");
+    const b = at(four, "p2", [160, H - 20], 170, H - 2);
+    expect(b.kind === "move" && b.move.kind === "slot" && b.move.side).toBe("bottom");
+    // ...but drifting along the edge zone without nearing the edge is not a push.
+    const d = at(four, "p0", [160, 20], 200, 14);
+    expect(d.kind === "move" && d.move.kind === "slot" && d.move.side).not.toBe("top");
+  });
+
   it("past the top of the screen still counts as the head", () => {
     const t = at(four, "p2", [150, 650], 150, -30);
     expect(t.kind === "move" && t.move.kind === "slot" && t.move.side).toBe("top");

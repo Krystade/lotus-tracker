@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useStore } from "../state/store";
 import { FACING, pxRects, type PxRect, type Side } from "../layout/table";
 import type { Rotation } from "../state/types";
-import { closeFacing, faceSeat, touchFacing, undoSeats, useSeatUi, type SeatDrag } from "./seatDrag";
+import { closeFacing, faceSeat, startSeatDrag, touchFacing, undoSeats, useSeatUi, type SeatDrag } from "./seatDrag";
 
 const rectStyle = (r: PxRect, inset = 0): CSSProperties => ({
   left: r.x + inset,
@@ -72,7 +72,13 @@ export function SeatDragLayer({ boardRef }: { boardRef: React.RefObject<HTMLDivE
         )}
 
       {now && facing && now[facing.pid] && (
-        <FacingPicker r={now[facing.pid]} current={rotOf(facing.pid)} pid={facing.pid} name={nameOf(facing.pid)} />
+        <FacingPicker
+          r={now[facing.pid]}
+          current={rotOf(facing.pid)}
+          pid={facing.pid}
+          name={nameOf(facing.pid)}
+          boardRef={boardRef}
+        />
       )}
     </div>
   );
@@ -85,7 +91,19 @@ const ARROWS: { side: Side; glyph: string }[] = [
   { side: "left", glyph: "◀" },
 ];
 
-function FacingPicker({ r, current, pid, name }: { r: PxRect; current: Rotation; pid: string; name: string }) {
+function FacingPicker({
+  r,
+  current,
+  pid,
+  name,
+  boardRef,
+}: {
+  r: PxRect;
+  current: Rotation;
+  pid: string;
+  name: string;
+  boardRef: React.RefObject<HTMLDivElement>;
+}) {
   useEffect(() => {
     const away = (e: PointerEvent) => {
       if (!(e.target as HTMLElement).closest(".seatfacing")) closeFacing();
@@ -93,8 +111,23 @@ function FacingPicker({ r, current, pid, name }: { r: PxRect; current: Rotation;
     window.addEventListener("pointerdown", away, true);
     return () => window.removeEventListener("pointerdown", away, true);
   }, []);
+  // The picker lies over the whole tile, the seat's own handle included. A
+  // press where that handle shows through picks the seat up, as it would
+  // without the picker; anywhere else on the tile keeps the picker open.
+  const down = (e: React.PointerEvent) => {
+    const t = e.target as HTMLElement;
+    const handle = boardRef.current?.querySelector<HTMLElement>(`.tile[data-pid="${pid}"] .tile__seat`);
+    const h = handle?.getBoundingClientRect();
+    if (!t.closest(".seatfacing__btn") && h && e.clientX >= h.left && e.clientX <= h.right && e.clientY >= h.top && e.clientY <= h.bottom) {
+      e.stopPropagation();
+      e.preventDefault();
+      startSeatDrag(pid, e.nativeEvent, boardRef.current);
+      return;
+    }
+    touchFacing();
+  };
   return (
-    <div className="seatfacing" style={rectStyle(r)} onPointerDown={touchFacing}>
+    <div className="seatfacing" style={rectStyle(r)} onPointerDown={down}>
       <div className="seatfacing__label" style={{ transform: `translate(-50%, -50%) rotate(${current}deg)` }}>
         {name}: face which edge?
       </div>

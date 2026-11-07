@@ -36,7 +36,7 @@ const handleOf = async (pid) => {
   return [r.x + r.width / 2, r.y + r.height / 2];
 };
 const tileBox = (pid) => page.locator(`.tile[data-pid="${pid}"]`).boundingBox();
-async function drag(pid, path, { hold = 420, shot } = {}) {
+async function drag(pid, path, { hold = 420, shot, release = true } = {}) {
   const [x, y] = await handleOf(pid);
   await touch("touchStart", [[x, y]]);
   await sleep(hold);
@@ -50,9 +50,15 @@ async function drag(pid, path, { hold = 420, shot } = {}) {
   }
   await sleep(60);
   if (shot) await page.screenshot({ path: `${OUT}/${shot}.png` });
+  if (!release) return last;
   await touch("touchEnd", engine === chromium ? [] : [last]);
   await sleep(320);
+  return last;
 }
+const lift = async (last) => { await touch("touchEnd", engine === chromium ? [] : [last]); await sleep(320); };
+const dragging = () => page.evaluate(() => document.documentElement.hasAttribute("data-seat-drag") || !!document.querySelector(".seatchip, .seatghost, .seatrail"));
+// A new game on the default preset for n seats (changing the pod size resets it).
+const fresh = (n) => S(`s.newGame({ playerCount: ${n === 3 ? 4 : 3}, startingLife: 40 }); window.__store.getState().newGame({ playerCount: ${n}, startingLife: 40 })`);
 const table = () => S(`const l = s.game.layout; return l.rows + "x" + l.cols + " " + l.placements.map(p => p.playerId + "@" + p.row + "," + p.col + "+" + p.rowSpan + "x" + p.colSpan + "r" + p.rotation).join(" ")`);
 
 // ---- 4 players: Ana (p0) to the head
@@ -107,6 +113,16 @@ const left = await page.locator(".seatfacing__btn--left").boundingBox();
 await touch("touchStart", [[left.x + 20, left.y + 20]]); await touch("touchEnd", engine === chromium ? [] : [[left.x + 20, left.y + 20]]);
 await sleep(250);
 check((await S(`return s.game.layout.placements.find(p => p.playerId === "p1").rotation`)) === 90, "facing picker turns the seat");
+// The picker covers the tile, handle and all; holding the handle again must
+// still lift the seat rather than feed the picker.
+check((await page.locator(".seatfacing").count()) === 1, "the facing picker is still open");
+await drag("p1", [[180, 30], [180, 4]]);
+{
+  const r = await tileBox("p1");
+  const rot = await S(`return s.game.layout.placements.find(p => p.playerId === "p1").rotation`);
+  check(rot === 180 && r.y < 80 && (await page.locator(".seatfacing").count()) === 0,
+    `holding the handle under the facing picker still moves the seat (${await table()})`);
+}
 
 // other players can tap during a drag
 await S(`s.newGame({ playerCount: 3, startingLife: 40 }); window.__store.getState().newGame({ playerCount: 4, startingLife: 40 })`);
@@ -125,6 +141,84 @@ if (cdp) {
   await sleep(300);
   const lifeAfter = await S(`return s.game.players[3].life`);
   check(lifeAfter !== lifeD, `another player's life tap still works mid-drag (${lifeD} -> ${lifeAfter})`);
+}
+
+// A new game while Undo shows: the pill goes, and nothing from the last game
+// (its seats, its monarch) can come back through it.
+// (The release at home just above left a facing picker on Ana; the drags
+// below must work through it.)
+await fresh(4);
+await S(`s.giveSticker("monarch", "p1")`);
+await sleep(200);
+await drag("p0", [[180, 30], [180, 4]]);
+const movedTable = await table();
+check(movedTable.startsWith("3x2 p0@1,1+1x2r180"), `Ana moved to the head (${movedTable})`);
+await S(`s.newGame({ playerCount: 4, startingLife: 40 })`);
+await sleep(200);
+check((await page.locator(".seatundo").count()) === 0, "a new game takes the Undo pill away");
+for (const u of await page.locator(".seatundo").all()) {
+  const r = await u.boundingBox();
+  await touch("touchStart", [[r.x + r.width / 2, r.y + r.height / 2]]); await touch("touchEnd", engine === chromium ? [] : [[r.x + r.width / 2, r.y + r.height / 2]]);
+  await sleep(300);
+}
+check((await table()) === movedTable && (await S(`return s.game.stickers.length`)) === 0, "nothing from the last game comes back: same seats, no old monarch");
+
+// Someone uses the layout picker while a seat is held: the drag ends and the
+// drop does nothing (it was planned for the old board).
+await fresh(4);
+await sleep(200);
+{
+  const last = await drag("p0", [[180, 30], [180, 4]], { release: false });
+  check(await dragging(), "Ana is held over the head");
+  await S(`s.applyLayout({ id: "custom-col", name: "column", builtIn: false, playerCount: 4, rows: 4, cols: 1,
+    placements: [0, 1, 2, 3].map((i) => ({ playerId: "p" + i, row: i + 1, col: 1, rowSpan: 1, colSpan: 1, rotation: 0 })) })`);
+  await sleep(150);
+  check(!(await dragging()), "a layout change mid-drag ends the drag");
+  await lift(last);
+  check((await S(`return s.game.layout.id`)) === "custom-col" && (await page.locator(".seatundo").count()) === 0,
+    `...and letting go does not overwrite it (${await table()})`);
+}
+
+// A new game with another pod size mid-drag: no Undo for a move that never happened.
+await fresh(4);
+await sleep(200);
+{
+  const last = await drag("p0", [[180, 30], [180, 4]], { release: false });
+  check(await dragging(), "Ana is held over the head again");
+  await S(`s.newGame({ playerCount: 5, startingLife: 40 })`);
+  await sleep(150);
+  await lift(last);
+  check((await S(`return s.game.layout.id`)) === "builtin-5" && (await page.locator(".seatundo").count()) === 0 && !(await dragging()),
+    "a new game mid-drag leaves the new board alone, with no Undo pill");
+}
+
+// A seat let go mid-swipe (no pause before lifting): the very next tap
+// anywhere must still click. Chrome used to turn the swipe into a fling and
+// spend the next tap stopping it.
+if (cdp) {
+  await fresh(5);
+  await sleep(200);
+  const before = await table();
+  const [x, y] = await handleOf("p4");
+  await touch("touchStart", [[x, y]]);
+  await sleep(420);
+  let last = [x, y];
+  for (const [tx, ty] of [[60, 300], [60, 420]]) {
+    for (let i = 1; i <= 6; i++) await touch("touchMove", [[last[0] + ((tx - last[0]) * i) / 6, last[1] + ((ty - last[1]) * i) / 6]]);
+    last = [tx, ty];
+  }
+  await touch("touchEnd", []);
+  await sleep(1000);
+  const moved = await table();
+  const m = await page.locator(`.tile[data-pid="p1"] .tile__more`).boundingBox();
+  await touch("touchStart", [[m.x + m.width / 2, m.y + m.height / 2]]);
+  await touch("touchEnd", []);
+  await sleep(400);
+  const opened = await page.locator(".overlay").count();
+  check(moved !== before && opened > 0, `the first tap after a swiped drop opens Ben's ⋯ (${opened} open, ${moved})`);
+  await page.keyboard.press("Escape");
+  await sleep(200);
+  check((await page.locator(".overlay").count()) === 0, "...and Escape closes it again");
 }
 
 // 3 players: Cal (p2, bottom) joins the left side
@@ -155,6 +249,59 @@ const t0 = await tileBox("p0");
 await drag("p4", [[t0.x + t0.width * 0.85, t0.y + t0.height / 2 + 20]], { shot: "seat-10-custom-split" });
 const after1 = await tileBox("p1");
 check(Math.abs(before1.width - after1.width) < 2 && Math.abs(before1.x - after1.x) < 2, `Customize: untouched seats keep their columns — ${await table()}`);
+
+// Where the handle sits: for every preset and every layout one move away,
+// with the corner timer on each seat in turn and counters on every tile, the
+// handle box must not overlap the life +/- zones, ⋯, the counter row or the
+// timer face, and its centre must hit the handle itself.
+{
+  const r = await page.evaluate(async () => {
+    const T = await import("/lotus-tracker/src/layout/table.ts");
+    const P = await import("/lotus-tracker/src/layout/presets.ts");
+    const st = () => window.__store.getState();
+    const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const meet = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+    const bad = [];
+    let layouts = 0;
+    for (let n = 2; n <= 6; n++) {
+      st().newGame({ playerCount: 3, startingLife: 40 });
+      st().newGame({ playerCount: n, startingLife: 40 });
+      st().updateSettings({ turnTimerEnabled: true, turnTimerPlacement: "corner", turnTimerScale: 1 });
+      for (let i = 0; i < n; i++) { st().adjustCounter(`p${i}`, "poison", 2); st().bumpTax(`p${i}`, 1); }
+      await frame();
+      const board = document.querySelector(".board");
+      const box = board.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(board).rowGap) || 8;
+      const preset = P.defaultLayoutFor(n);
+      const all = new Map([[T.geomKey(preset, true), preset]]);
+      for (const p of preset.placements)
+        for (const m of T.planMoves(preset, p.playerId, box.width, box.height, gap).moves) all.set(T.geomKey(m.grid, true), T.asLayout(m.grid, n));
+      for (const L of all.values()) {
+        layouts++;
+        st().applyLayout(L);
+        for (let a = 0; a < n; a++) {
+          st().setActivePlayer(`p${a}`);
+          await frame();
+          for (const tile of document.querySelectorAll(".tile[data-pid]")) {
+            const pid = tile.dataset.pid;
+            if (a > 0 && pid !== `p${a}`) continue; // the timer face only moves with the active seat
+            const h = tile.querySelector(".tile__seat");
+            if (!h) { bad.push(`${n}p ${pid}: no handle`); continue; }
+            const hr = h.getBoundingClientRect();
+            for (const sel of [".tile__adj--minus", ".tile__adj--plus", ".tile__more", ".tcount-row", ".tile__pill"]) {
+              const el = tile.querySelector(sel);
+              if (el && meet(hr, el.getBoundingClientRect())) bad.push(`${n}p ${L.rows}x${L.cols} ${pid}: ${sel}`);
+            }
+            const hit = document.elementFromPoint(hr.left + hr.width / 2, hr.top + hr.height / 2);
+            if (!hit || !h.contains(hit)) bad.push(`${n}p ${pid}: centre hits ${hit?.className}`);
+          }
+        }
+      }
+    }
+    return { bad, layouts };
+  });
+  check(r.bad.length === 0, `the handle clears life +/-, ⋯, counters and the timer face in ${r.layouts} layouts${r.bad.length ? ` — ${r.bad.length} overlaps, e.g. ${[...new Set(r.bad)].slice(0, 4).join("; ")}` : ""}`);
+}
 
 await b.close();
 console.log(fails ? `${fails} FAILED` : "all ok");

@@ -291,9 +291,11 @@ export const useStore = create<StoreState>()(
           const count = seated.length > 0 ? seated.length : playerCount;
           // Keep the current (possibly custom) arrangement if the pod size is
           // unchanged, instead of always snapping back to the default preset.
+          // As a fresh object: a new game never shares the last game's layout,
+          // so nothing tied to it (a seat move's undo) carries across.
           const keep =
             layout ??
-            (s.game.layout.playerCount === count ? s.game.layout : undefined);
+            (s.game.layout.playerCount === count ? { ...s.game.layout } : undefined);
           const game = newGameState(count, startingLife, s.settings, keep);
           if (seated.length > 0) {
             game.players = game.players.map((p, i) =>
@@ -771,7 +773,8 @@ export const useStore = create<StoreState>()(
       setSeatRotation: (playerId, rotation) =>
         set((s) => {
           const old = s.game.layout;
-          if (!old.placements.some((p) => p.playerId === playerId)) return {};
+          const seat = old.placements.find((p) => p.playerId === playerId);
+          if (!seat || seat.rotation === rotation) return {};
           const layout: LayoutConfig = {
             ...old,
             id: old.builtIn ? `arranged-${old.playerCount}` : old.id,

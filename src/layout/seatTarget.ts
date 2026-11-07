@@ -13,6 +13,8 @@ export const DEPART_PX = 24;
 export const DISC_R = 40;
 export const DISC_KEEP_R = 48;
 export const END_ZONE_PX = 88;
+/** Within this of the board's head or foot edge counts as pushing on to it. */
+export const EDGE_PX = 4;
 
 export interface PickInput {
   pid: string;
@@ -69,14 +71,18 @@ export function pickTarget(i: PickInput): SeatTarget {
   }
 
   // 2. The head and foot. A handle armed inside an end zone has to push on
-  //    towards that edge (or leave and come back) before the end counts.
+  //    towards that edge (or leave and come back) before the end counts. A
+  //    handle by the edge cannot push 24px further on a screen with no room
+  //    past the board, so reaching the edge itself is enough.
   const armZone = inEndZone(i.armY, H);
   const zone = inEndZone(y, H);
   const zoneOk =
     zone &&
     (zone !== armZone ||
       i.leftArmZone ||
-      (zone === "top" ? y < i.armY - DEPART_PX : y > i.armY + DEPART_PX));
+      (zone === "top"
+        ? y < Math.max(i.armY - DEPART_PX, EDGE_PX)
+        : y > Math.min(i.armY + DEPART_PX, H - EDGE_PX)));
   if (zone && zoneOk) {
     if (plan.locked[zone]) return { kind: "locked", side: zone };
     const ends = plan.moves.filter(

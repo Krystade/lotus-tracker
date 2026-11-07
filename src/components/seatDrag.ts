@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 import type { GameState, LayoutConfig } from "../state/types";
 import { asLayout, planMoves, swapSeats, type MovePlan, type PxRect } from "../layout/table";
 import { inEndZone, pickTarget, type SeatTarget } from "../layout/seatTarget";
+import { remapStickers } from "../game/stickers";
 
 export const HOLD_MS = 350;
 const DRIFT_PX = 8;
@@ -25,11 +26,23 @@ export interface SeatDrag {
   rects: Record<string, PxRect>;
   plan: MovePlan;
   target: SeatTarget;
+  /** The layout the plan was made from; a drop only lands on that layout. */
+  layout: LayoutConfig | null;
+}
+
+/** One seat edit, undoable while the board still shows what it produced. */
+export interface SeatUndo {
+  before: LayoutConfig;
+  beforeStickers: GameState["stickers"];
+  after: LayoutConfig;
+  afterStickers: GameState["stickers"];
+  pids: string[];
+  until: number;
 }
 
 interface SeatUi {
   drag: SeatDrag | null;
-  undo: { layout: LayoutConfig; stickers: GameState["stickers"]; pids: string[]; until: number } | null;
+  undo: SeatUndo | null;
   facing: { pid: string; until: number } | null;
   /** The seat that just moved, for a brief flash. */
   flash: string | null;
@@ -70,19 +83,53 @@ export function touchFacing() {
   if (f) openFacing(f.pid);
 }
 
+/**
+ * Undo only while the board still shows what the edit produced. A new game
+ * (even one keeping this arrangement), a layout from the picker or another
+ * seat edit retires it; stickers moved since are carried back, not reverted.
+ */
 export function undoSeats() {
   const u = useSeatUi.getState().undo;
   if (!u) return;
-  slideNext = true;
-  useStore.getState().restoreSeats(u.layout, u.stickers);
   clearUndo();
+  const g = useStore.getState().game;
+  if (g.layout !== u.after) return;
+  const stickers = g.stickers === u.afterStickers ? u.beforeStickers : remapStickers(g.stickers, u.after, u.before);
+  edit(() => useStore.getState().restoreSeats(u.before, stickers));
 }
 
-function remember(pids: string[]) {
+// The undo pill goes the moment the layout is no longer the edited one.
+useStore.subscribe((s) => {
+  const u = useSeatUi.getState().undo;
+  if (u && s.game.layout !== u.after) clearUndo();
+});
+
+/** Run a seat edit with the slide armed; true when the layout changed. */
+function edit(run: () => void): boolean {
+  const before = useStore.getState().game.layout;
   slideNext = true;
-  const g = useStore.getState().game;
+  run();
+  if (useStore.getState().game.layout !== before) return true;
+  slideNext = false;
+  return false;
+}
+
+/** Make a seat edit undoable -- only if the store took it. */
+function remember(pids: string[], run: () => void) {
+  const was = useStore.getState().game;
+  if (!edit(run)) return;
+  const now = useStore.getState().game;
   clearUndo();
-  useSeatUi.setState({ undo: { layout: g.layout, stickers: g.stickers, pids, until: Date.now() + UNDO_MS } });
+  useSeatUi.setState({
+    undo: {
+      before: was.layout,
+      beforeStickers: was.stickers,
+      after: now.layout,
+      afterStickers: now.stickers,
+      pids,
+      until: Date.now() + UNDO_MS,
+    },
+  });
   undoTimer = window.setTimeout(clearUndo, UNDO_MS);
   if (flashTimer !== null) window.clearTimeout(flashTimer);
   useSeatUi.setState({ flash: pids[0] });
@@ -91,8 +138,7 @@ function remember(pids: string[]) {
 
 /** Turn a seat from the facing picker, undoable like a move. */
 export function faceSeat(pid: string, rotation: 0 | 90 | 180 | 270) {
-  remember([pid]);
-  useStore.getState().setSeatRotation(pid, rotation);
+  remember([pid], () => useStore.getState().setSeatRotation(pid, rotation));
   touchFacing();
 }
 
@@ -101,18 +147,19 @@ function commit(d: SeatDrag) {
   const store = useStore.getState();
   const layout = store.game.layout;
   const n = store.game.players.length;
+  // The plan and preview were made for the board as it was when the seat
+  // lifted. If anything changed it since, the drop means nothing.
+  if (layout !== d.layout) return;
   if (t.kind === "home" || (t.kind === "none" && !d.departed)) {
     openFacing(d.pid);
     return;
   }
   if (t.kind === "swap") {
-    remember([d.pid, t.with]);
-    store.rearrangeSeats(asLayout(swapSeats(layout, d.pid, t.with), n));
+    remember([d.pid, t.with], () => store.rearrangeSeats(asLayout(swapSeats(layout, d.pid, t.with), n)));
     return;
   }
   if (t.kind === "move") {
-    remember([d.pid]);
-    store.rearrangeSeats(asLayout(t.move.grid, n));
+    remember([d.pid], () => store.rearrangeSeats(asLayout(t.move.grid, n)));
   }
 }
 
@@ -131,6 +178,9 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
   let d: SeatDrag | null = null;
   let armed = false;
   let used = false;
+  // The board this gesture is about. If anything else changes the layout
+  // while the seat is held (a new game, the layout picker), the gesture ends.
+  const start = useStore.getState().game.layout;
   closeFacing();
 
   const boardBox = () => board.getBoundingClientRect();
@@ -142,8 +192,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
       const r = el.getBoundingClientRect();
       rects[el.dataset.pid!] = { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height };
     });
-    const layout = useStore.getState().game.layout;
-    const plan = planMoves(layout, pid, b.width, b.height, gap);
+    const plan = planMoves(start, pid, b.width, b.height, gap);
     armed = true;
     used = true;
     d = {
@@ -161,6 +210,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
       rects,
       plan,
       target: { kind: "none" },
+      layout: start,
     };
     useSeatUi.setState({ drag: d });
     if (useStore.getState().settings.vibrateOn) navigator.vibrate?.(10);
@@ -183,6 +233,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
       rects: {},
       plan: { table: false, moves: [], locked: {} },
       target: { kind: "none" },
+      layout: null,
     },
   });
 
@@ -222,12 +273,23 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
     if (typeof pidOf === "number" && pidOf >= 0 && pidOf !== id) return;
     own(ev);
   };
+  // touch-action: none stops the page panning, but Chrome still reads a
+  // release mid-swipe as a fling and spends the next tap anywhere stopping it
+  // (no click). Claiming the moves keeps the swipe from becoming a gesture.
+  const noFling = (ev: TouchEvent) => {
+    if (armed && ev.cancelable) ev.preventDefault();
+  };
   const cancel = () => stop();
+  const unwatch = useStore.subscribe((st) => {
+    if (st.game.layout !== start) stop();
+  });
   const stop = () => {
     window.clearTimeout(holdTimer);
+    unwatch();
     window.removeEventListener("pointermove", move, true);
     window.removeEventListener("pointerup", up, true);
     window.removeEventListener("pointercancel", up, true);
+    window.removeEventListener("touchmove", noFling, true);
     window.removeEventListener("resize", cancel);
     document.removeEventListener("visibilitychange", cancel);
     window.setTimeout(() => window.removeEventListener("click", swallowClick, true), 350);
@@ -237,6 +299,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerup", up, true);
   window.addEventListener("pointercancel", up, true);
+  window.addEventListener("touchmove", noFling, { capture: true, passive: false });
   window.addEventListener("click", swallowClick, true);
   window.addEventListener("resize", cancel);
   document.addEventListener("visibilitychange", cancel);
