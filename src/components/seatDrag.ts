@@ -273,6 +273,12 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
     if (typeof pidOf === "number" && pidOf >= 0 && pidOf !== id) return;
     own(ev);
   };
+  // touch-action: none stops the page panning, but Chrome still reads a
+  // release mid-swipe as a fling and spends the next tap anywhere stopping it
+  // (no click). Claiming the moves keeps the swipe from becoming a gesture.
+  const noFling = (ev: TouchEvent) => {
+    if (armed && ev.cancelable) ev.preventDefault();
+  };
   const cancel = () => stop();
   const unwatch = useStore.subscribe((st) => {
     if (st.game.layout !== start) stop();
@@ -283,6 +289,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
     window.removeEventListener("pointermove", move, true);
     window.removeEventListener("pointerup", up, true);
     window.removeEventListener("pointercancel", up, true);
+    window.removeEventListener("touchmove", noFling, true);
     window.removeEventListener("resize", cancel);
     document.removeEventListener("visibilitychange", cancel);
     window.setTimeout(() => window.removeEventListener("click", swallowClick, true), 350);
@@ -292,6 +299,7 @@ export function startSeatDrag(pid: string, e: PointerEvent, board: HTMLElement |
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerup", up, true);
   window.addEventListener("pointercancel", up, true);
+  window.addEventListener("touchmove", noFling, { capture: true, passive: false });
   window.addEventListener("click", swallowClick, true);
   window.addEventListener("resize", cancel);
   document.addEventListener("visibilitychange", cancel);

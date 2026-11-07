@@ -192,6 +192,35 @@ await sleep(200);
     "a new game mid-drag leaves the new board alone, with no Undo pill");
 }
 
+// A seat let go mid-swipe (no pause before lifting): the very next tap
+// anywhere must still click. Chrome used to turn the swipe into a fling and
+// spend the next tap stopping it.
+if (cdp) {
+  await fresh(5);
+  await sleep(200);
+  const before = await table();
+  const [x, y] = await handleOf("p4");
+  await touch("touchStart", [[x, y]]);
+  await sleep(420);
+  let last = [x, y];
+  for (const [tx, ty] of [[60, 300], [60, 420]]) {
+    for (let i = 1; i <= 6; i++) await touch("touchMove", [[last[0] + ((tx - last[0]) * i) / 6, last[1] + ((ty - last[1]) * i) / 6]]);
+    last = [tx, ty];
+  }
+  await touch("touchEnd", []);
+  await sleep(1000);
+  const moved = await table();
+  const m = await page.locator(`.tile[data-pid="p1"] .tile__more`).boundingBox();
+  await touch("touchStart", [[m.x + m.width / 2, m.y + m.height / 2]]);
+  await touch("touchEnd", []);
+  await sleep(400);
+  const opened = await page.locator(".overlay").count();
+  check(moved !== before && opened > 0, `the first tap after a swiped drop opens Ben's ⋯ (${opened} open, ${moved})`);
+  await page.keyboard.press("Escape");
+  await sleep(200);
+  check((await page.locator(".overlay").count()) === 0, "...and Escape closes it again");
+}
+
 // 3 players: Cal (p2, bottom) joins the left side
 await S(`s.newGame({ playerCount: 3, startingLife: 40 })`);
 await sleep(200);
