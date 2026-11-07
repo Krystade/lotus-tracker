@@ -25,7 +25,15 @@ for (const mode of ["drag", "corner"])
           return new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => {
             const pill = document.querySelector(".tile__pill");
             if (!pill) return res({ missing: true });
-            const b = pill.getBoundingClientRect();
+            // A corner timer is a quarter/half disc: its box's far corner is
+            // empty by design. Probe the face the player actually taps.
+            const faceEls = pill.classList.contains("tile__pill--corner")
+              ? [...pill.querySelectorAll(".tile__pill-turn, .tile__pill-time")]
+              : [pill];
+            const rs = faceEls.map((e) => e.getBoundingClientRect());
+            const b = { left: Math.min(...rs.map((q) => q.left)), top: Math.min(...rs.map((q) => q.top)),
+              width: Math.max(...rs.map((q) => q.right)) - Math.min(...rs.map((q) => q.left)),
+              height: Math.max(...rs.map((q) => q.bottom)) - Math.min(...rs.map((q) => q.top)) };
             const blockers = new Set();
             let miss = 0, n = 0;
             for (const fx of [0.15, 0.5, 0.85]) for (const fy of [0.15, 0.5, 0.85]) {

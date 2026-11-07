@@ -18,6 +18,7 @@ import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
 import { junctionFor, type TileJunction } from "../layout/junction";
+import { screenToLocal, usePillGesture } from "./usePillGesture";
 import { warnLevel } from "../game/turn";
 import type { Placement, Rotation, TilePos } from "../state/types";
 
@@ -32,7 +33,6 @@ interface Props {
 // Sits just above the counter-chip row that owns the bottom edge. Still
 // draggable anywhere; this is only where it starts.
 const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 76 };
-const DRAG_THRESHOLD = 6;
 
 // Corner placement. The pill hugs the edge of the tile the junction is on --
 // in every built-in layout that is the tile's own top edge, where the +/-
@@ -44,63 +44,86 @@ const DRAG_THRESHOLD = 6;
 // The hexagon-and-clock column is centred as a whole, so the hexagon sits
 // ~12px above the board's middle; on a notched phone the safe areas push the
 // board's middle a further ~8px down from the screen's. Hence up > sideways.
-const EDGE_INSET = 4;
-const CORNER_INSET = 10;
 const HEX_CLEARANCE = { left: 40, right: 40, up: 56, down: 50 };
-
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.max(lo, Math.min(hi, v));
+// Corner timer at the board's middle: the face sits this far out along both
+// edges, clear of the hexagon (27px) and the clock tucked under it.
+const HEX_HOLE = 50;
 
 const LOCAL_TO_SCREEN: Record<Rotation, Rotation> = { 0: 0, 90: 270, 180: 180, 270: 90 };
 
 /**
- * Where the pill goes in "corner" mode, in the tile's own (rotated) frame:
- * its anchor as a percentage of the content box, and the translate that puts
- * the pill's near corner on that anchor, pointing into the tile.
+ * "corner" mode: the timer fills the corner of the tile where the most seats
+ * meet, flush against both edges, with a rounded inner edge -- a quarter
+ * disc. Where that point is the middle of an edge (two seats head to head)
+ * it is a half disc flush against the edge, beside the menu hexagon.
+ * Everything here is in the tile's own (rotated) frame.
  */
-function cornerPillPlacement(j: TileJunction, rot: Rotation) {
+function cornerTimer(j: TileJunction, rot: Rotation) {
   const [ax, ay] = screenToLocal(rot, j.fx - 0.5, j.fy - 0.5);
-  let [dx, dy] = screenToLocal(rot, j.sx, j.sy).map(Math.sign);
-  // Hug a top/bottom edge when the junction is on one; otherwise a side.
+  const [dx, dy] = screenToLocal(rot, j.sx, j.sy).map(Math.sign) as [number, number];
+  if (dx !== 0 && dy !== 0) {
+    // A corner: (dx, dy) points from it into the tile.
+    const from = dx > 0 ? (dy > 0 ? 90 : 0) : dy > 0 ? 180 : 270;
+    return {
+      kind: "quarter" as const,
+      style: {
+        left: dx > 0 ? 0 : "auto",
+        right: dx < 0 ? 0 : "auto",
+        top: dy > 0 ? 0 : "auto",
+        bottom: dy < 0 ? 0 : "auto",
+        "--cx": dx > 0 ? "0%" : "100%",
+        "--cy": dy > 0 ? "0%" : "100%",
+        "--from": `${from}deg`,
+        "--sweep": "90deg",
+        // Where the corner is the middle of the board, the menu hexagon and
+        // game clock sit on it: the disc grows by that much and the face
+        // sits out past them.
+        "--hole": j.atCenter ? `${HEX_HOLE}px` : "0px",
+        // The face is centred on the diagonal, halfway between the hole
+        // and the curve: padded on the two sides that meet at the corner.
+        "--pl": dx > 0 ? "var(--pdx)" : "0.4em",
+        "--pr": dx < 0 ? "var(--pdx)" : "0.4em",
+        "--pt": dy > 0 ? "var(--pdy)" : "0.4em",
+        "--pb": dy < 0 ? "var(--pdy)" : "0.4em",
+        // Round only the inner corner, the one facing back into the tile.
+        borderRadius:
+          dx > 0 && dy > 0 ? "0 0 100% 0"
+          : dx < 0 && dy > 0 ? "0 0 0 100%"
+          : dx < 0 && dy < 0 ? "100% 0 0 0"
+          : "0 100% 0 0",
+        "--jh": dx > 0 ? "flex-start" : "flex-end",
+        "--jv": dy > 0 ? "flex-start" : "flex-end",
+      } as unknown as CSSProperties,
+    };
+  }
+  // Middle of an edge. Sit beside the hexagon that covers that point.
   const hugY = dy !== 0;
-  let along = hugY ? dx : dy;
-  let alongPx = along * CORNER_INSET;
-  if (j.atCenter) {
-    // Head-to-head seats meet mid-edge, square under the hexagon; sit beside
-    // it, not under it.
-    if (along === 0) along = 1;
-    const unit: [number, number] = hugY ? [along, 0] : [0, along];
-    const [sx, sy] = screenToLocal(LOCAL_TO_SCREEN[rot], unit[0], unit[1]);
-    const need =
-      sx > 0 ? HEX_CLEARANCE.right
-      : sx < 0 ? HEX_CLEARANCE.left
-      : sy > 0 ? HEX_CLEARANCE.down
-      : HEX_CLEARANCE.up;
-    alongPx = along * need;
-  }
-  if (hugY) dx = along;
-  else dy = along;
-  const px = hugY ? alongPx : dx * EDGE_INSET;
-  const py = hugY ? dy * EDGE_INSET : alongPx;
+  const into = hugY ? dy : dx;
+  // Always to the tile's own right of the point (its +x or +y).
+  const unit: [number, number] = hugY ? [1, 0] : [0, 1];
+  const [sx, sy] = screenToLocal(LOCAL_TO_SCREEN[rot], unit[0], unit[1]);
+  const need =
+    sx > 0 ? HEX_CLEARANCE.right : sx < 0 ? HEX_CLEARANCE.left : sy > 0 ? HEX_CLEARANCE.down : HEX_CLEARANCE.up;
+  const pos = (0.5 + (hugY ? ax : ay)) * 100;
+  const from = hugY ? (into > 0 ? 90 : 270) : into > 0 ? 0 : 180;
   return {
-    left: `${(0.5 + ax) * 100}%`,
-    top: `${(0.5 + ay) * 100}%`,
-    transform: `translate(calc(${-50 + dx * 50}% + ${px}px), calc(${-50 + dy * 50}% + ${py}px))`,
+    kind: "half" as const,
+    style: {
+      ...(hugY
+        ? { left: `clamp(0px, calc(${pos}% + ${need}px), calc(100% - 2 * var(--r)))`, [into > 0 ? "top" : "bottom"]: 0 }
+        : { top: `clamp(0px, calc(${pos}% + ${need}px), calc(100% - 2 * var(--r)))`, [into > 0 ? "left" : "right"]: 0 }),
+      "--cx": hugY ? "50%" : into > 0 ? "0%" : "100%",
+      "--cy": hugY ? (into > 0 ? "0%" : "100%") : "50%",
+      "--from": `${from}deg`,
+      "--sweep": "180deg",
+      borderRadius: hugY
+        ? into > 0 ? "0 0 999px 999px" : "999px 999px 0 0"
+        : into > 0 ? "0 999px 999px 0" : "999px 0 0 999px",
+      "--jh": hugY ? "center" : into > 0 ? "flex-start" : "flex-end",
+      "--jv": hugY ? (into > 0 ? "flex-start" : "flex-end") : "center",
+    } as unknown as CSSProperties,
+    hugY,
   };
-}
-
-/** Convert a screen-space drag delta into the tile's own (pre-rotation) axes. */
-function screenToLocal(rot: Rotation, dx: number, dy: number): [number, number] {
-  switch (rot) {
-    case 90:
-      return [dy, -dx];
-    case 180:
-      return [-dx, -dy];
-    case 270:
-      return [-dy, dx];
-    default:
-      return [dx, dy];
-  }
 }
 
 export function PlayerTile({
@@ -135,10 +158,15 @@ export function PlayerTile({
   const toggleEliminated = useStore((s) => s.toggleEliminated);
 
   const contentRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ sx: number; sy: number; base: TilePos; moved: boolean } | null>(
-    null,
-  );
-  const [dragPos, setDragPos] = useState<TilePos | null>(null);
+  const pinnedToCorner = timerPlacement === "corner";
+  const pill = usePillGesture({
+    pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos } as TilePos & { x: number; y: number },
+    rotation: placement.rotation,
+    pinned: pinnedToCorner,
+    box: () => contentRef.current,
+    onTap: passTurn,
+    onCommit: (p) => setTimerPos(pid, p),
+  });
 
   // Accumulating life swing: sums rapid taps, shows a "+3 / -5" chip, then
   // fades and commits. Tapping the chip undoes the whole swing (mis-tap guard).
@@ -228,12 +256,17 @@ export function PlayerTile({
   const rotated = placement.rotation === 90 || placement.rotation === 270;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
-  const pillPos = dragPos ?? player.timerPos ?? DEFAULT_TIMER_POS;
-  const junction =
-    timerPlacement === "corner" ? junctionFor(layout, pid) : null;
-  const pillPlace: CSSProperties = junction
-    ? cornerPillPlacement(junction, placement.rotation)
-    : { left: `${pillPos.x}%`, top: `${pillPos.y}%` };
+  const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...pill.live };
+  const junction = pinnedToCorner ? junctionFor(layout, pid) : null;
+  const corner = junction ? cornerTimer(junction, placement.rotation) : null;
+  const pillScale = scale * (pillPos.scale ?? 1);
+  const pillPlace: CSSProperties = corner
+    ? corner.style
+    : {
+        left: `${pillPos.x}%`,
+        top: `${pillPos.y}%`,
+        transform: `translate(-50%, -50%) rotate(${pillPos.angle ?? 0}deg)`,
+      };
 
   const contentStyle = {
     transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
@@ -254,41 +287,6 @@ export function PlayerTile({
     color: textOn(look.base),
     ...look.vars,
   } as CSSProperties;
-
-  // Turn pill: a plain tap passes the turn; dragging repositions it (remembered
-  // per player). Movement past a small threshold counts as a drag, not a tap.
-  const onPillDown = (e: PointerEvent) => {
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { sx: e.clientX, sy: e.clientY, base: pillPos, moved: false };
-  };
-  const onPillMove = (e: PointerEvent) => {
-    const st = drag.current;
-    // Pinned to the corner: nothing to drag, so any movement is still a tap.
-    if (junction) return;
-    const el = contentRef.current;
-    if (!st || !el) return;
-    const dx = e.clientX - st.sx;
-    const dy = e.clientY - st.sy;
-    if (!st.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    st.moved = true;
-    const [lx, ly] = screenToLocal(placement.rotation, dx, dy);
-    setDragPos({
-      x: clamp(st.base.x + (lx / el.offsetWidth) * 100, 8, 92),
-      y: clamp(st.base.y + (ly / el.offsetHeight) * 100, 8, 92),
-    });
-  };
-  const onPillUp = (e: PointerEvent) => {
-    e.stopPropagation();
-    const st = drag.current;
-    drag.current = null;
-    if (st?.moved && dragPos) {
-      setTimerPos(pid, dragPos);
-    } else if (st) {
-      passTurn();
-    }
-    setDragPos(null);
-  };
 
   return (
     <div
@@ -391,23 +389,27 @@ export function PlayerTile({
                 ? ` tile__pill--${warnLevel(turn.remainingSec)}`
                 : ""
             }${
-              dragPos ? " tile__pill--dragging" : ""
+              pill.live ? " tile__pill--dragging" : ""
+            }${corner ? ` tile__pill--corner tile__pill--${corner.kind}${corner.kind === "half" && !corner.hugY ? " tile__pill--side" : ""}` : ""
             }`}
             style={
               {
                 ...pillPlace,
-                "--timer-scale": String(scale),
+                "--timer-scale": String(pillScale),
                 // Drives the countdown ring; drains clockwise from the top.
                 "--pct": String(turnFraction),
               } as CSSProperties
             }
-            onPointerDown={onPillDown}
-            onPointerMove={onPillMove}
-            onPointerUp={onPillUp}
+            onPointerDown={pill.onPointerDown}
+            // Pointer taps are handled by the gesture (and their clicks
+            // swallowed); this is the keyboard's Enter/Space.
+            onClick={(e) => {
+              if (e.detail === 0) passTurn();
+            }}
             aria-label={
               junction
-                ? "turn timer: tap to pass turn"
-                : "turn timer: tap to pass turn, drag to move"
+                ? "turn timer: tap to pass turn, pinch to resize"
+                : "turn timer: tap to pass turn, drag to move, pinch to resize or turn"
             }
           >
             <span className="tile__pill-inner">

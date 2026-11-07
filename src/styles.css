@@ -459,6 +459,98 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+/* Corner placement: the timer IS the corner of the tile -- flush against
+   both edges where the seats meet, its inner edge a quarter circle (a half
+   circle where two seats meet mid-edge). The ring drains along that curve,
+   centred on the corner. --cx/--cy/--from/--sweep, the corner radius and
+   --jh/--jv (which way the face sits) come from cornerTimer(). */
+.tile__pill--corner {
+  --min-side: min(var(--lw, 100cqw), var(--lh, 100cqh));
+  --r: min(
+    calc(var(--min-side) * 0.34 * var(--timer-scale, 1) + var(--hole, 0px)),
+    calc(var(--min-side) * 0.9)
+  );
+  /* Custom properties resolve where they are declared, so the face's
+     padding (used via --pl/--pt from cornerTimer) is computed here: (r +
+     hole) / 2 along the diagonal is (r + hole)·0.354 per axis, less half the
+     face (about 2.2em wide, 2em tall). */
+  --pdx: max(0.4em, calc((var(--r) + var(--hole, 0px)) * 0.354 - 1.1em));
+  --pdy: max(0.4em, calc((var(--r) + var(--hole, 0px)) * 0.354 - 1em));
+  transform: none;
+  width: var(--r);
+  height: var(--r);
+  padding: 0;
+  font-size: calc((var(--r) - var(--hole, 0px)) * 0.2);
+  display: flex;
+  justify-content: var(--jh);
+  align-items: var(--jv);
+  background: conic-gradient(
+    from var(--from) at var(--cx) var(--cy),
+    rgba(255, 255, 255, 0.95) calc(var(--pct, 1) * var(--sweep)),
+    rgba(255, 255, 255, 0.2) 0 var(--sweep),
+    transparent 0
+  );
+}
+.tile__pill--half {
+  --r: min(
+    calc(var(--min-side) * 0.3 * var(--timer-scale, 1)),
+    calc(var(--min-side) * 0.7)
+  );
+  width: calc(var(--r) * 2);
+}
+.tile__pill--side {
+  width: var(--r);
+  height: calc(var(--r) * 2);
+}
+.tile__pill--side .tile__pill-inner {
+  width: calc(100% - max(6px, 0.4em));
+  height: calc(100% - 2 * max(6px, 0.4em));
+}
+.tile__pill--corner .tile__pill-inner {
+  /* The rim shows only along the curve: the face is the same shape, a few
+     px smaller, tucked into the same corner. */
+  width: calc(100% - max(6px, 0.4em));
+  height: calc(100% - max(6px, 0.4em));
+  border-radius: inherit;
+  flex-direction: column;
+  justify-content: var(--jv);
+  align-items: var(--jh);
+  padding: var(--pt, 0.6em) var(--pr, 0.6em) var(--pb, 0.6em) var(--pl, 0.6em);
+  box-sizing: border-box;
+  gap: 0.15em;
+}
+.tile__pill--half .tile__pill-inner {
+  width: calc(100% - 2 * max(6px, 0.4em));
+  justify-content: center;
+  align-items: center;
+}
+.tile__pill--corner .tile__pill-turn {
+  padding: 0;
+  background: none;
+  font-size: 0.7em;
+  opacity: 0.7;
+}
+.tile__pill--corner .tile__pill-time {
+  padding: 0;
+  font-size: 1.15em;
+}
+.tile__pill--corner.tile__pill--warn {
+  background: conic-gradient(
+    from var(--from) at var(--cx) var(--cy),
+    #ffb020 calc(var(--pct, 1) * var(--sweep)),
+    rgba(255, 176, 32, 0.25) 0 var(--sweep),
+    transparent 0
+  );
+}
+.tile__pill--corner.tile__pill--urgent {
+  background: conic-gradient(
+    from var(--from) at var(--cx) var(--cy),
+    #ff3b4e calc(var(--pct, 1) * var(--sweep)),
+    rgba(255, 59, 78, 0.3) 0 var(--sweep),
+    transparent 0
+  );
+}
+
 /* Running low: the ring turns amber at 0:30 and red at 0:10, so the table
    sees it coming instead of only hearing it at 0:00. */
 .tile__pill--warn {

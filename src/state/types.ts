@@ -30,6 +30,10 @@ export interface CounterSet {
 export interface TilePos {
   x: number;
   y: number;
+  /** This player's own size for the turn timer, times the global setting. */
+  scale?: number;
+  /** Turn of the timer in the tile's own frame, degrees. Drag placement only. */
+  angle?: number;
 }
 
 export interface Player {

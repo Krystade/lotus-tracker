@@ -45,6 +45,9 @@ const measure = (page) =>
     const pill = document.querySelector(".tile__pill:not(.tile__pill--preview)");
     return {
       pill: r(pill),
+      face: pill ? (() => { const rs = [...pill.querySelectorAll(".tile__pill-turn, .tile__pill-time")].map((e) => e.getBoundingClientRect());
+        return { x0: Math.min(...rs.map((q) => q.left)), y0: Math.min(...rs.map((q) => q.top)), x1: Math.max(...rs.map((q) => q.right)), y1: Math.max(...rs.map((q) => q.bottom)) }; })() : null,
+      corner: pill?.classList.contains("tile__pill--quarter") ? "quarter" : pill?.classList.contains("tile__pill--half") ? "half" : null,
       tile: r(pill?.closest(".tile")),
       hex: r(document.querySelector(".center__hex")),
       clock: r(document.querySelector(".center__clock")),
@@ -85,8 +88,11 @@ for (const count of [2, 3, 4, 5, 6]) {
     check(!!m.pill, `${tag}: pill shown`);
     if (!m.pill) continue;
     check(inside(m.pill, m.tile), `${tag}: pill inside its own tile`);
-    check(!overlap(m.pill, m.hex) && !overlap(m.pill, m.clock), `${tag}: clear of hex and clock`);
-    check(!m.adj.some((a) => overlap(m.pill, a)), `${tag}: clear of the +/- zones`);
+    // The corner timer IS the corner now: flush against the tile's edges,
+    // with its face (turn + time) clear of the hexagon and clock.
+    const flush = ["x0", "y0", "x1", "y1"].filter((k) => Math.abs(m.pill[k] - m.tile[k]) < 1.5).length;
+    check(flush >= (m.corner === "quarter" ? 2 : 1), `${tag}: ${m.corner} flush against ${flush} tile edges`);
+    check(!overlap(m.face, m.hex) && !overlap(m.face, m.clock), `${tag}: face clear of hex and clock`);
     // Near the middle of the board: within a third of the board's short side.
     const cx = 375 / 2, cy = 812 / 2;
     if (count <= 4) check(dist(m.pill, cx, cy) < 70, `${tag}: hugs the middle (${dist(m.pill, cx, cy).toFixed(0)}px away)`);

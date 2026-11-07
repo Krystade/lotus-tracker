@@ -97,3 +97,22 @@ export function sanitizeBests(v: unknown): ArcadeBests {
   }
   return out;
 }
+
+export const TIMER_MIN_SCALE = 0.5;
+export const TIMER_MAX_SCALE = 3;
+
+/** A saved timer position, with anything missing or out of range made safe. */
+export function cleanTimerPos(v: unknown): import("./types").TilePos | undefined {
+  const o = v as { x?: unknown; y?: unknown; scale?: unknown; angle?: unknown } | null;
+  const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : undefined);
+  const x = num(o?.x);
+  const y = num(o?.y);
+  if (x === undefined || y === undefined) return undefined;
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  const out: import("./types").TilePos = { x: clamp(x, 0, 100), y: clamp(y, 0, 100) };
+  const scale = num(o?.scale);
+  if (scale !== undefined) out.scale = clamp(scale, TIMER_MIN_SCALE, TIMER_MAX_SCALE);
+  const angle = num(o?.angle);
+  if (angle !== undefined) out.angle = ((angle % 360) + 360) % 360;
+  return out;
+}

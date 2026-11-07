@@ -14,7 +14,8 @@ import {
   type Settings,
   type StickerId,
 } from "./types";
-import { sanitizeBests, sanitizeCounters, sanitizeSettings } from "./sanitize";
+import { cleanTimerPos, sanitizeBests, sanitizeCounters, sanitizeSettings } from "./sanitize";
+import type { TilePos } from "./types";
 import {
   applyLifeDelta,
   clampCounter,
@@ -214,7 +215,7 @@ export interface StoreState {
     delta: number,
   ) => void;
   toggleEliminated: (playerId: string) => void;
-  setTimerPos: (playerId: string, pos: { x: number; y: number }) => void;
+  setTimerPos: (playerId: string, pos: TilePos) => void;
   setPlayerName: (playerId: string, name: string) => void;
   setPlayerLook: (playerId: string, look: string) => void;
   setFirstPlayer: (playerId: string) => void;
@@ -570,7 +571,7 @@ export const useStore = create<StoreState>()(
             ...s.game,
             players: updatePlayer(s.game.players, playerId, (p) => ({
               ...p,
-              timerPos: pos,
+              timerPos: cleanTimerPos(pos),
             })),
           },
         })),
@@ -800,6 +801,7 @@ export const useStore = create<StoreState>()(
                 pinned: Array.isArray(pl?.pinned)
                   ? pl.pinned.filter((k): k is string => typeof k === "string")
                   : [],
+                timerPos: pl?.timerPos ? cleanTimerPos(pl.timerPos) : undefined,
               }))
             : current.game.players;
         const rawGame = p.game
