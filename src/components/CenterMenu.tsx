@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useStore } from "../state/store";
 import { formatGameClock } from "../util/format";
 import { STICKERS } from "../game/stickers";
+import { boardHub, gapShift } from "../layout/junction";
 
 interface Props {
   onNewGame: () => void;
@@ -39,6 +40,14 @@ export function CenterMenu({
   const toggleGameTimer = useStore((s) => s.toggleGameTimer);
   const toggleTurnRunning = useStore((s) => s.toggleTurnRunning);
   const resetTurnTimer = useStore((s) => s.resetTurnTimer);
+  const layout = useStore((s) => s.game.layout);
+  const hub = useMemo(() => boardHub(layout), [layout]);
+  const hubStyle = {
+    "--hub-x": String(hub.x),
+    "--hub-y": String(hub.y),
+    "--hub-gx": String(gapShift(hub.x)),
+    "--hub-gy": String(gapShift(hub.y)),
+  } as CSSProperties;
 
   const close = () => {
     setOpen(false);
@@ -61,7 +70,7 @@ export function CenterMenu({
 
   return (
     <>
-      <div className="center">
+      <div className="center" style={hubStyle}>
         <button
           className="center__hex"
           onClick={() => setOpen(true)}

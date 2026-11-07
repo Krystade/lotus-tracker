@@ -61,10 +61,13 @@ input {
 .app {
   position: fixed;
   inset: 0;
-  padding: calc(env(safe-area-inset-top) + 4px)
-    calc(env(safe-area-inset-right) + 6px)
-    calc(env(safe-area-inset-bottom) + 4px)
-    calc(env(safe-area-inset-left) + 6px);
+  /* Named so .center can find the board (the content box) from the padding
+     box it is positioned in. */
+  --pad-t: calc(env(safe-area-inset-top) + 4px);
+  --pad-r: calc(env(safe-area-inset-right) + 6px);
+  --pad-b: calc(env(safe-area-inset-bottom) + 4px);
+  --pad-l: calc(env(safe-area-inset-left) + 6px);
+  padding: var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l);
 }
 
 .board {
@@ -589,10 +592,20 @@ input {
 }
 
 /* ---------- center ---------- */
+/* Sits on the layout's hub (boardHub): --hub-x/-y are board fractions and
+   --hub-gx/-gy how many grid gaps to shift by (the hub is the middle of a
+   gap, and tracks are a gap narrower than a plain fraction says). .center
+   is positioned in .app's padding box; the board is its content box. */
 .center {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  left: calc(
+    var(--pad-l) + (100% - var(--pad-l) - var(--pad-r)) * var(--hub-x, 0.5) +
+      var(--gap) * var(--hub-gx, 0)
+  );
+  top: calc(
+    var(--pad-t) + (100% - var(--pad-t) - var(--pad-b)) * var(--hub-y, 0.5) +
+      var(--gap) * var(--hub-gy, 0)
+  );
   transform: translate(-50%, -50%);
   z-index: 6;
   display: flex;
