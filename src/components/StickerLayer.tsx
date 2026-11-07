@@ -55,6 +55,8 @@ function Sticker({ st, boardRef }: { st: StickerHold; boardRef: React.RefObject<
     let cur: Live = { x: st.x, y: st.y, scale: st.scale };
     let base = { cur, pts: new Map(pts) };
     let moved = false;
+    // Every finger that took part: only their clicks are swallowed.
+    const used = new Set<number>([e.pointerId]);
     const origin = { x: e.clientX, y: e.clientY };
 
     const rebase = () => {
@@ -92,6 +94,7 @@ function Sticker({ st, boardRef }: { st: StickerHold; boardRef: React.RefObject<
       if (pts.has(ev.pointerId)) return;
       own(ev);
       pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      used.add(ev.pointerId);
       moved = true; // a second finger is a pinch, never a tap
       rebase();
     };
@@ -114,8 +117,13 @@ function Sticker({ st, boardRef }: { st: StickerHold; boardRef: React.RefObject<
       finish();
       if (moved) place(st.id, cur);
     };
-    // The lifted fingers' clicks would otherwise land on the tile beneath.
+    // The lifted fingers' clicks would otherwise land on whatever is under
+    // them. Only after a drag or pinch, and only those fingers' clicks -- a
+    // tap on someone else's tile a moment later must still count.
     const swallowClick = (ev: MouseEvent) => {
+      if (!moved) return;
+      const id = (ev as globalThis.PointerEvent).pointerId;
+      if (typeof id === "number" && id >= 0 && !used.has(id)) return;
       ev.stopPropagation();
       ev.preventDefault();
     };

@@ -45,6 +45,13 @@ check(/rotate\(4[0-9]/.test(tf), `drawn rotated (${tf})`);
 await touch("touchStart", [[x, y]]); await touch("touchEnd", []);
 await page.waitForTimeout(250);
 check((await S(`return s.game.turn.activePlayerId`)) !== "p0", "a tap passes the turn");
+// ...and the next player's tap straight after still counts. The details
+// button acts on click, which the gesture used to swallow for 350ms.
+const more = await page.locator('.tile[data-pid="p1"] .tile__more').boundingBox();
+await touch("touchStart", [[more.x + more.width / 2, more.y + more.height / 2]]); await touch("touchEnd", []);
+await page.waitForTimeout(250);
+check((await page.locator(".crow").count()) > 0, "a tap on another tile's details right after passing still opens it");
+await page.keyboard.press("Escape"); await page.waitForTimeout(200);
 
 // corner mode: pinch resizes, never moves or turns
 await S(`s.updateSettings({ turnTimerPlacement: "corner" }); window.__store.getState().setActivePlayer("p2");`);
