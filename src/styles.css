@@ -3252,10 +3252,14 @@ input[type="text"] {
 /* ---------- seat drag: move seats on the board ---------- */
 .tile__seat {
   position: absolute;
-  top: 6px;
+  /* 44px, but never down into the life +/- zones, which start 22% of the
+     way down the tile as its player sees it (--lh): a short side seat gets
+     a smaller handle rather than one that swallows the top of its minus. */
+  --seat: clamp(32px, calc(var(--lh, 100cqh) * 0.22 - 7px), 44px);
+  top: 5px;
   z-index: 5;
-  width: 44px;
-  height: 44px;
+  width: var(--seat);
+  height: var(--seat);
   display: grid;
   place-items: center;
   padding: 0;
@@ -3268,16 +3272,16 @@ input[type="text"] {
   -webkit-touch-callout: none;
   user-select: none;
 }
-.tile__seat--left { left: 6px; }
-.tile__seat--right { right: 6px; }
+.tile__seat--left { left: 5px; }
+.tile__seat--right { right: 5px; }
 .tile__seat::after {
   content: "";
   position: absolute;
   inset: -5px;
   border-radius: 50%;
   background: conic-gradient(#fff var(--fill, 0turn), transparent 0);
-  -webkit-mask: radial-gradient(circle, transparent 24px, #000 24.5px);
-  mask: radial-gradient(circle, transparent 24px, #000 24.5px);
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
   pointer-events: none;
 }
 .tile__seat.is-arming { opacity: 1; }

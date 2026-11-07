@@ -77,6 +77,9 @@ function startSpot(layout: Grid, holder: string): { x: number; y: number } {
 /**
  * Which of a player's two upper corners (as they sit) is further from where
  * the tiles meet. The turn timer owns the near one; the seat handle the far.
+ * Where the tiles meet partway along the player's own top edge, the corner
+ * timer is a half disc to the right of that point (see PlayerTile's
+ * cornerTimer), so the left corner is the free one wherever the point is.
  */
 export function farTopCorner(layout: Grid, holder: string): "left" | "right" {
   const a = tileSpot(layout, holder, 0.1, 0.1);
@@ -86,6 +89,8 @@ export function farTopCorner(layout: Grid, holder: string): "left" | "right" {
   if (!p || !j) return "left";
   const jx = (p.col - 1 + j.fx * p.colSpan) / layout.cols;
   const jy = (p.row - 1 + j.fy * p.rowSpan) / layout.rows;
+  const { lx, ly } = localSpot(layout, holder, jx, jy);
+  if (Math.abs(ly) < 1e-9 && lx > 1e-9 && lx < 1 - 1e-9) return "left";
   const far = (q: { x: number; y: number }) => Math.hypot(q.x - jx, q.y - jy);
   return far(b) > far(a) + 1e-9 ? "right" : "left";
 }

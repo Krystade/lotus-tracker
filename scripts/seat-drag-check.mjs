@@ -221,6 +221,59 @@ await drag("p4", [[t0.x + t0.width * 0.85, t0.y + t0.height / 2 + 20]], { shot: 
 const after1 = await tileBox("p1");
 check(Math.abs(before1.width - after1.width) < 2 && Math.abs(before1.x - after1.x) < 2, `Customize: untouched seats keep their columns — ${await table()}`);
 
+// Where the handle sits: for every preset and every layout one move away,
+// with the corner timer on each seat in turn and counters on every tile, the
+// handle box must not overlap the life +/- zones, ⋯, the counter row or the
+// timer face, and its centre must hit the handle itself.
+{
+  const r = await page.evaluate(async () => {
+    const T = await import("/lotus-tracker/src/layout/table.ts");
+    const P = await import("/lotus-tracker/src/layout/presets.ts");
+    const st = () => window.__store.getState();
+    const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const meet = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+    const bad = [];
+    let layouts = 0;
+    for (let n = 2; n <= 6; n++) {
+      st().newGame({ playerCount: 3, startingLife: 40 });
+      st().newGame({ playerCount: n, startingLife: 40 });
+      st().updateSettings({ turnTimerEnabled: true, turnTimerPlacement: "corner", turnTimerScale: 1 });
+      for (let i = 0; i < n; i++) { st().adjustCounter(`p${i}`, "poison", 2); st().bumpTax(`p${i}`, 1); }
+      await frame();
+      const board = document.querySelector(".board");
+      const box = board.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(board).rowGap) || 8;
+      const preset = P.defaultLayoutFor(n);
+      const all = new Map([[T.geomKey(preset, true), preset]]);
+      for (const p of preset.placements)
+        for (const m of T.planMoves(preset, p.playerId, box.width, box.height, gap).moves) all.set(T.geomKey(m.grid, true), T.asLayout(m.grid, n));
+      for (const L of all.values()) {
+        layouts++;
+        st().applyLayout(L);
+        for (let a = 0; a < n; a++) {
+          st().setActivePlayer(`p${a}`);
+          await frame();
+          for (const tile of document.querySelectorAll(".tile[data-pid]")) {
+            const pid = tile.dataset.pid;
+            if (a > 0 && pid !== `p${a}`) continue; // the timer face only moves with the active seat
+            const h = tile.querySelector(".tile__seat");
+            if (!h) { bad.push(`${n}p ${pid}: no handle`); continue; }
+            const hr = h.getBoundingClientRect();
+            for (const sel of [".tile__adj--minus", ".tile__adj--plus", ".tile__more", ".tcount-row", ".tile__pill"]) {
+              const el = tile.querySelector(sel);
+              if (el && meet(hr, el.getBoundingClientRect())) bad.push(`${n}p ${L.rows}x${L.cols} ${pid}: ${sel}`);
+            }
+            const hit = document.elementFromPoint(hr.left + hr.width / 2, hr.top + hr.height / 2);
+            if (!hit || !h.contains(hit)) bad.push(`${n}p ${pid}: centre hits ${hit?.className}`);
+          }
+        }
+      }
+    }
+    return { bad, layouts };
+  });
+  check(r.bad.length === 0, `the handle clears life +/-, ⋯, counters and the timer face in ${r.layouts} layouts${r.bad.length ? ` — ${r.bad.length} overlaps, e.g. ${[...new Set(r.bad)].slice(0, 4).join("; ")}` : ""}`);
+}
+
 await b.close();
 console.log(fails ? `${fails} FAILED` : "all ok");
 process.exit(fails ? 1 : 0);
