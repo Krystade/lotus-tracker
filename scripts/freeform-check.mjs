@@ -28,45 +28,127 @@ const state = () => page.evaluate(() => window.__store.getState());
 // Narrow cells: ⋯ and the turn timer move to a clear spot in the cell. With
 // each seat active in turn, neither may overlap the life number, a + / − sign,
 // the menu hexagon or clock, or each other, and each must take its own tap.
+//
+// A sign is measured by its ink, not its box: the text's own box (a Range on
+// it) trimmed by the font's metrics -- side bearings along the baseline,
+// ascent/descent padding across it -- with each trim applied to whichever
+// screen side the tile's 0/90/180/270 turn puts it on. A sign's span or line
+// box is mostly empty font padding, and on a turned tile that padding lies
+// along the screen's x, where it reported ⋯ "on" a + it was nowhere near.
+const measureSeat = (id) =>
+  page.evaluate((id) => {
+    const tile = document.querySelector(`.tile[data-pid="${id}"]`);
+    const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+    const lifeEl = tile.querySelector(".tile__life");
+    const range = document.createRange();
+    range.selectNodeContents(lifeEl);
+    const life = box(range);
+    const rot = Number(/rotate\((\d+)deg\)/.exec(tile.querySelector(".tile__content").style.transform)?.[1] ?? 0);
+    const ctx = document.createElement("canvas").getContext("2d");
+    const signs = [...tile.querySelectorAll(".tile__sign")].map((el) => {
+      const rg = document.createRange();
+      rg.selectNodeContents(el);
+      const q = rg.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const m = ctx.measureText(el.textContent);
+      // Insets from the text box to the ink, in the text's own frame.
+      const l = -m.actualBoundingBoxLeft, r = m.width - m.actualBoundingBoxRight;
+      const t = m.fontBoundingBoxAscent - m.actualBoundingBoxAscent, bt = m.fontBoundingBoxDescent - m.actualBoundingBoxDescent;
+      let x0 = q.left, y0 = q.top, x1 = q.right, y1 = q.bottom;
+      if (rot === 0) { x0 += l; x1 -= r; y0 += t; y1 -= bt; }
+      else if (rot === 90) { y0 += l; y1 -= r; x1 -= t; x0 += bt; }
+      else if (rot === 180) { x1 -= l; x0 += r; y1 -= t; y0 += bt; }
+      else { y1 -= l; y0 += r; x0 += t; x1 -= bt; }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    });
+    const more = box(tile.querySelector(".tile__more"));
+    const pillEl = tile.querySelector(".tile__pill");
+    const pill = pillEl ? box(pillEl) : null;
+    const hub = [".center__hex", ".center__clock"].map((q) => document.querySelector(q)).filter(Boolean).map(box);
+    const hits = (b, el) => { const e = document.elementFromPoint(b.x + b.w / 2, b.y + b.h / 2); return !!e && (e === el || el.contains(e)); };
+    return { rot, life, signs, more, pill, hub, moreHit: hits(more, tile.querySelector(".tile__more")), pillHit: pill ? hits(pill, pillEl) : null };
+  }, id);
+
+const ov = (a, b) => a.x < b.x + b.w - 0.5 && a.x + a.w > b.x + 0.5 && a.y < b.y + b.h - 0.5 && a.y + a.h > b.y + 0.5;
+function problems(r) {
+  const bad = [];
+  for (const [name, el] of [["⋯", r.more], ["timer", r.pill]]) {
+    if (!el) continue;
+    if (ov(el, r.life)) bad.push(`${name}/number`);
+    r.signs.forEach((g, i) => ov(el, g) && bad.push(`${name}/${i ? "+" : "−"}`));
+    r.hub.forEach((h, i) => ov(el, h) && bad.push(`${name}/${i ? "clock" : "hexagon"}`));
+  }
+  if (r.pill && ov(r.pill, r.more)) bad.push("timer/⋯");
+  if (!r.moreHit) bad.push("⋯ not tappable");
+  if (r.pill && !r.pillHit) bad.push("timer not tappable");
+  if (!r.pill) bad.push("no timer");
+  return bad;
+}
+
+const settle = () => page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+
 async function overlapCheck(label, shotSeat) {
   const s0 = await state();
   for (const p of s0.game.players) {
     await page.evaluate((id) => window.__store.getState().setActivePlayer(id), p.id);
-    const r = await page.evaluate((id) => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => {
-      const tile = document.querySelector(`.tile[data-pid="${id}"]`);
-      const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
-      const lifeEl = tile.querySelector(".tile__life");
-      const range = document.createRange();
-      range.selectNodeContents(lifeEl);
-      const life = box(range);
-      // A sign's span box is its line box; the glyph is the middle of it.
-      const signs = [...tile.querySelectorAll(".tile__sign")].map((el) => {
-        const b = box(el), fs = parseFloat(getComputedStyle(el).fontSize);
-        const tall = b.h > b.w;
-        return tall ? { x: b.x, y: b.y, w: b.w, h: b.h } : { x: b.x, y: b.y + (b.h - fs) / 2, w: b.w, h: fs };
-      });
-      const more = box(tile.querySelector(".tile__more"));
-      const pillEl = tile.querySelector(".tile__pill");
-      const pill = pillEl ? box(pillEl) : null;
-      const hub = [".center__hex", ".center__clock"].map((q) => document.querySelector(q)).filter(Boolean).map(box);
-      const hits = (b, el) => { const e = document.elementFromPoint(b.x + b.w / 2, b.y + b.h / 2); return !!e && (e === el || el.contains(e)); };
-      res({ life, signs, more, pill, hub, moreHit: hits(more, tile.querySelector(".tile__more")), pillHit: pill ? hits(pill, pillEl) : null });
-    }))), p.id);
-    const ov = (a, b) => a.x < b.x + b.w - 0.5 && a.x + a.w > b.x + 0.5 && a.y < b.y + b.h - 0.5 && a.y + a.h > b.y + 0.5;
-    const bad = [];
-    for (const [name, el] of [["⋯", r.more], ["timer", r.pill]]) {
-      if (!el) continue;
-      if (ov(el, r.life)) bad.push(`${name}/number`);
-      r.signs.forEach((g, i) => ov(el, g) && bad.push(`${name}/${i ? "+" : "−"}`));
-      r.hub.forEach((h, i) => ov(el, h) && bad.push(`${name}/${i ? "clock" : "hexagon"}`));
-    }
-    if (r.pill && ov(r.pill, r.more)) bad.push("timer/⋯");
-    if (!r.moreHit) bad.push("⋯ not tappable");
-    if (r.pill && !r.pillHit) bad.push("timer not tappable");
-    if (!r.pill) bad.push("no timer");
+    await settle();
+    const bad = problems(await measureSeat(p.id));
     check(bad.length === 0, `${label} ${p.name}: ⋯ and timer clear${bad.length ? " -- " + bad.join(", ") : ""}`);
     if (p.id === shotSeat) await page.screenshot({ path: `${OUT}/${label}-active-${p.id}.png` });
   }
+}
+
+// Control for the ink measure: put ⋯ over a seat's + (in the tile's own
+// frame, against the glyph from the font's ascent side, where the trimmed
+// padding was) overlapping its ink by `by` px -- negative is a gap. Restores
+// ⋯ (React does not know it moved) and returns that seat's ⋯ problems.
+async function moreOnPlus(id, by) {
+  await page.evaluate(([id, by]) => {
+    const tile = document.querySelector(`.tile[data-pid="${id}"]`);
+    const content = tile.querySelector(".tile__content");
+    const rot = Number(/rotate\((\d+)deg\)/.exec(content.style.transform)?.[1] ?? 0);
+    const cr = content.getBoundingClientRect();
+    const toLocal = (X, Y) =>
+      rot === 0 ? [X - cr.left, Y - cr.top] : rot === 90 ? [Y - cr.top, cr.right - X] : rot === 180 ? [cr.right - X, cr.bottom - Y] : [cr.bottom - Y, X - cr.left];
+    const g = tile.querySelectorAll(".tile__sign")[1];
+    const rg = document.createRange();
+    rg.selectNodeContents(g);
+    const q = rg.getBoundingClientRect();
+    const cs = getComputedStyle(g);
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const m = ctx.measureText(g.textContent);
+    // The text box's top-left in local space, then the ink from there.
+    const c4 = [toLocal(q.left, q.top), toLocal(q.right, q.top), toLocal(q.left, q.bottom), toLocal(q.right, q.bottom)];
+    const lx = Math.min(...c4.map((c) => c[0])), ly = Math.min(...c4.map((c) => c[1]));
+    const inkTop = ly + m.fontBoundingBoxAscent - m.actualBoundingBoxAscent;
+    const inkCx = lx + (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2;
+    const more = tile.querySelector(".tile__more");
+    more.dataset.style = more.getAttribute("style") ?? "";
+    more.style.left = `${inkCx - more.offsetWidth / 2}px`;
+    more.style.top = `${inkTop - more.offsetHeight + by}px`;
+    more.style.right = "auto";
+    more.style.bottom = "auto";
+  }, [id, by]);
+  const r = await measureSeat(id);
+  await page.evaluate((id) => {
+    const more = document.querySelector(`.tile[data-pid="${id}"] .tile__more`);
+    more.setAttribute("style", more.dataset.style);
+    delete more.dataset.style;
+  }, id);
+  return { rot: r.rot, bad: problems(r).filter((b) => b.startsWith("⋯/")) };
+}
+
+async function inkControl(label, id) {
+  await page.evaluate((id) => window.__store.getState().setActivePlayer(id), id);
+  await settle();
+  const on = await moreOnPlus(id, 3);
+  check(on.bad.includes("⋯/+"), `${label} control: ⋯ moved 3px onto ${id}'s + ink (turned ${on.rot}) is caught (${on.bad.join(",") || "nothing"})`);
+  const near = await moreOnPlus(id, -3);
+  check(!near.bad.includes("⋯/+"), `${label} control: ⋯ 3px short of ${id}'s + ink is clear of it (${near.bad.join(",") || "nothing"})`);
+  const back = problems(await measureSeat(id));
+  check(back.length === 0, `${label} control: ⋯ restored on ${id} (${back.join(",") || "clear"})`);
 }
 
 async function openEditor() {
@@ -92,6 +174,7 @@ check((await page.locator(".tile__seat").count()) === 0, "no seat-move handle on
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${OUT}/02-board-x.png` });
 await overlapCheck("02x", "p3");
+await inkControl("02x", "p1");
 
 // X: cells meet at the board's middle, so that is where the hub goes (the
 // hexagon-and-clock column is centred on it as a whole).

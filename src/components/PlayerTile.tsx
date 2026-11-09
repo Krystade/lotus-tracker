@@ -317,6 +317,72 @@ function gridPill(rotation: Rotation, content: HTMLElement): { x: number; y: num
   return spot?.moved ? { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 } : null;
 }
 
+// Air between a + / − glyph's ink and the corner disc's rim, so a pressed
+// glyph (scaled 1.15) still clears it.
+const SIGN_DISC_GAP = 6;
+
+/**
+ * Corner mode on a grid tile: the corner disc sits over the tile's corner,
+ * and on a narrow tile its rim covers the + or − glyph there. Slide each
+ * covered glyph along the tile (its own x) away from the disc -- toward the
+ * number -- until its ink clears the rim. Only the glyph moves; its tap zone
+ * stays put. Everything is in the content box's own frame: offsetLeft/Top
+ * ignore transforms, so neither the button's translateY(-50%) nor a shift
+ * already applied feeds back into the measurement. [minus, plus] px, or
+ * null when nothing is covered.
+ */
+function signShifts(content: HTMLElement): [number, number] | null {
+  const pillEl = content.querySelector<HTMLElement>(".tile__pill--corner");
+  if (!pillEl || pillEl.offsetParent !== content) return null;
+  const sw = content.offsetWidth;
+  const cxf = parseFloat(pillEl.style.getPropertyValue("--cx")) / 100;
+  const cyf = parseFloat(pillEl.style.getPropertyValue("--cy")) / 100;
+  if (!sw || !Number.isFinite(cxf) || !Number.isFinite(cyf)) return null;
+  const pw = pillEl.offsetWidth;
+  const ph = pillEl.offsetHeight;
+  // A quarter disc's centre is its flush corner, a half disc's the middle
+  // of its flush edge; either way the radius is the box's short side.
+  const c = { x: pillEl.offsetLeft + cxf * pw, y: pillEl.offsetTop + cyf * ph };
+  const rad = Math.min(pw, ph) + SIGN_DISC_GAP;
+  if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
+  const out: [number, number] = [0, 0];
+  content.querySelectorAll<HTMLElement>(".tile__adj").forEach((btn) => {
+    const g = btn.querySelector<HTMLElement>(".tile__sign");
+    const i = btn.classList.contains("tile__adj--plus") ? 1 : 0;
+    if (!g || !measureCtx) return;
+    const cs = getComputedStyle(g);
+    measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const m = measureCtx.measureText(g.textContent ?? "");
+    const fa = m.fontBoundingBoxAscent ?? 0;
+    const fd = m.fontBoundingBoxDescent ?? 0;
+    // The span's own box, untransformed; the glyph's ink inside it, with
+    // the baseline below half the line gap and the font's ascent.
+    const left = btn.offsetLeft + g.offsetLeft;
+    const top = btn.offsetTop - btn.offsetHeight / 2 + g.offsetTop;
+    const base = top + Math.max(0, g.offsetHeight - fa - fd) / 2 + fa;
+    const x0 = left - m.actualBoundingBoxLeft;
+    const x1 = left + m.actualBoundingBoxRight;
+    const y0 = base - m.actualBoundingBoxAscent;
+    const y1 = base + m.actualBoundingBoxDescent;
+    if (!(x1 > x0) || !(y1 > y0)) return;
+    const dy = Math.max(y0 - c.y, 0, c.y - y1);
+    if (dy >= rad) return;
+    const need = Math.sqrt(rad * rad - dy * dy);
+    const toLeft = Math.min(0, c.x - need - x1);
+    const toRight = Math.max(0, c.x + need - x0);
+    if (toLeft === 0 || toRight === 0) return;
+    // Away from the disc, staying on the tile: a corner disc leaves only one
+    // way (toward the number); a half disc mid-edge takes the shorter one.
+    const fitsL = x0 + toLeft >= 0;
+    const fitsR = x1 + toRight <= sw;
+    out[i] = fitsL && (!fitsR || -toLeft <= toRight) ? toLeft : fitsR ? toRight : 0;
+  });
+  return out[0] || out[1] ? [Math.round(out[0]), Math.round(out[1])] : null;
+}
+
+const sameShift = (a: [number, number] | null, b: [number, number] | null) =>
+  a === b || (!!a && !!b && a[0] === b[0] && a[1] === b[1]);
+
 export function PlayerTile({
   placement,
   onOpenDetail,
@@ -360,6 +426,8 @@ export function PlayerTile({
   // corner mode is the corner disc instead.
   const autoPill = cell ? pinnedToCorner || player?.timerPos?.x === undefined : !pinnedToCorner && player?.timerPos?.x === undefined;
   const [spots, setSpots] = useState<PolySpots | null>(null);
+  // Corner mode: how far each + / − glyph slides clear of the corner disc.
+  const [signShift, setSignShift] = useState<[number, number] | null>(null);
   const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
   const pill = usePillGesture({
     pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
@@ -423,6 +491,8 @@ export function PlayerTile({
       : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill)
       : { more: null, pill: autoPill ? gridPill(placement.rotation, content) : null };
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
+    const shift = content && !cell && pinnedToCorner ? signShifts(content) : null;
+    setSignShift((s) => (sameShift(s, shift) ? s : shift));
   });
 
   const isActive = turn.activePlayerId === pid;
@@ -565,14 +635,14 @@ export function PlayerTile({
           aria-label={`${player.name} decrease life`}
           {...minus}
         >
-          <span className="tile__sign">–</span>
+          <span className="tile__sign" style={signShift?.[0] ? { translate: `${signShift[0]}px 0` } : undefined}>–</span>
         </button>
         <button
           className="tile__adj tile__adj--plus"
           aria-label={`${player.name} increase life`}
           {...plus}
         >
-          <span className="tile__sign">+</span>
+          <span className="tile__sign" style={signShift?.[1] ? { translate: `${signShift[1]}px 0` } : undefined}>+</span>
         </button>
 
         <div

@@ -2,7 +2,9 @@
 // controls: life number, + / − glyphs, ⋯, seat handle ✥, counter row, and
 // the hub hexagon + game clock. Presets 2–6 and a custom layout, every seat
 // active in turn, drag and corner modes; the timer must still take a tap.
-// A user-dragged position still wins. Run twice: with the Baloo 2 face, and
+// A user-dragged position still wins. In corner mode the disc also stays
+// clear of the + / − glyphs' ink (each slides along its tile away from the
+// disc), and a slid glyph stays off the number. Run twice: with the Baloo 2 face, and
 // with it blocked -- the fallback face (first paint, a font that failed to
 // load) is taller and is where the old fixed spot sat on the number.
 // DEV-only (drives window.__store).
@@ -102,6 +104,13 @@ const measure = (seat) =>
       hex: r(document.querySelector(".center__hex")),
       clock: r(document.querySelector(".center__clock")),
     };
+    // A tap on each glyph's ink still lands in its own + / − zone (a slid
+    // glyph moves; its zone does not).
+    const signTaps = [...tile.querySelectorAll(".tile__sign")].map((g) => {
+      const q = ink(g);
+      const hit = q && document.elementFromPoint((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2);
+      return !!hit && hit.closest(".tile__adj") === g.parentElement;
+    });
     const faceEls = pill ? [...pill.querySelectorAll(".tile__pill-turn, .tile__pill-time")].map((e) => e.getBoundingClientRect()) : [];
     const face = faceEls.length
       ? {
@@ -110,7 +119,7 @@ const measure = (seat) =>
         }
       : null;
     const kind = pill?.classList.contains("tile__pill--quarter") ? "quarter" : pill?.classList.contains("tile__pill--half") ? "half" : "pill";
-    return { pill: r(pill), face, kind, tile: r(tile), blocks, pillInTile: !!pill && tile.contains(pill) };
+    return { pill: r(pill), face, kind, tile: r(tile), blocks, signTaps, pillInTile: !!pill && tile.contains(pill) };
   }, seat);
 
 const overlap = (a, c) => !!a && !!c && a.x0 < c.x1 && c.x0 < a.x1 && a.y0 < c.y1 && c.y0 < a.y1;
@@ -143,17 +152,36 @@ function hits(m) {
     let hit;
     if (m.kind === "pill") hit = overlap(m.pill, q);
     // A corner disc wraps the hexagon and clock by design (its hole); there
-    // the readout itself must stay clear of them. Its rim also runs over the
-    // + / − glyph on a narrow tile's corner (it cannot shrink clear and keep
-    // a readable face), so there too only the readout is held clear.
-    else if (k === "hex" || k === "clock" || k === "signs") hit = overlap(m.face, q);
+    // the readout itself must stay clear of them. The + / − glyphs are held
+    // to the disc itself: the glyph slides out from under the rim.
+    else if (k === "hex" || k === "clock") hit = overlap(m.face, q);
     else {
       const d = disc(m);
       hit = overlap(m.pill, q) && discHits(d.c, d.rad, q);
     }
     if (hit) out.push(k);
   }
+  // A glyph slid clear of the disc must not land on the number instead.
+  if (m.blocks.number && m.blocks.signs.some((q) => overlap(q, m.blocks.number))) out.push("sign-on-number");
+  if (!m.signTaps.every(Boolean)) out.push(`sign-off-its-zone(${m.signTaps})`);
   return out;
+}
+
+// Control: with each glyph's slide stripped, the 4p seat-0 disc covers its
+// glyph (the screenshot that started this) -- so a clean corner pass below
+// means the slide cleared it, not that the test cannot see it.
+async function unslidControl(F) {
+  await setup("4", "corner", 0);
+  const slid = await page.evaluate(() => [...document.querySelectorAll('.tile[data-pid="p0"] .tile__sign')].map((g) => g.style.translate));
+  check(slid.some(Boolean), `${F} control: 4p corner seat 0 has a slid glyph (${JSON.stringify(slid)})`);
+  await page.evaluate(() => document.querySelectorAll('.tile[data-pid="p0"] .tile__sign').forEach((g) => { g.dataset.slid = g.style.translate; g.style.translate = ""; }));
+  const m = await measure(0);
+  check(hits(m).includes("signs"), `${F} control: unslid, the disc covers a glyph (${hits(m).join(",") || "nothing"} hit)`);
+  await page.evaluate(() => document.querySelectorAll('.tile[data-pid="p0"] .tile__sign').forEach((g) => { g.style.translate = g.dataset.slid; delete g.dataset.slid; }));
+  // And in drag mode nothing slides.
+  await setup("4", "drag", 0);
+  const still = await page.evaluate(() => [...document.querySelectorAll(".tile__sign")].map((g) => g.style.translate).filter(Boolean));
+  check(still.length === 0, `${F} drag mode: no glyph slid (${JSON.stringify(still)})`);
 }
 
 const tapPasses = async (seat, m) => {
@@ -187,6 +215,8 @@ await setup("4", "drag", 0, { x: 30, y: 20 });
   check(Math.abs(fx - 0.8) < 0.04 && Math.abs(fy - 0.3) < 0.04, `user-dragged position wins (at ${fx.toFixed(2)}, ${fy.toFixed(2)} of tile)`);
 }
 
+await unslidControl(F);
+
 for (const name of ["2", "3", "4", "5", "6", "custom"]) {
   const count = name === "custom" ? 3 : Number(name);
   for (const mode of ["drag", "corner"])
@@ -199,7 +229,7 @@ for (const name of ["2", "3", "4", "5", "6", "custom"]) {
       const h = hits(m);
       if (!check(h.length === 0, `${tag}: ${m.kind} clear (${h.join(",") || "nothing"} hit)`) && process.env.SHOTFAIL)
         await page.screenshot({ path: `${OUT}/${F}-fail-${mode}-${name}p-seat${seat}.png` });
-      if ((name === "4" || name === "5") && seat === 0) await page.screenshot({ path: `${OUT}/${F}-${mode}-${name}p-seat0.png` });
+      if ((name === "4" || name === "5") && seat === 0 || mode === "corner" && ["3", "4", "custom"].includes(name)) await page.screenshot({ path: `${OUT}/${F}-${mode}-${name}p-seat${seat}.png` });
       if (name === "custom" && seat === 1 && mode === "drag") await page.screenshot({ path: `${OUT}/${F}-drag-custom-seat1.png` });
       check(await tapPasses(seat, m), `${tag}: a tap on the timer passes the turn`);
     }
