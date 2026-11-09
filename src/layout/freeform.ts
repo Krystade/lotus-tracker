@@ -263,10 +263,15 @@ export interface PolyGeom {
   ring: string;
   /** Largest inscribed rectangle, relative to box: where the face goes. */
   face: { x: number; y: number; w: number; h: number };
+  /** The rounded outline's points, relative to box (for placing ⋯ and the timer). */
+  poly: Pt[];
+  /** The menu hexagon's centre, relative to box (null with fewer than two cells). */
+  hub: Pt | null;
 }
 
 export function polyGeoms(cells: LayoutCell[], W: number, H: number): Map<string, PolyGeom> {
   const out = new Map<string, PolyGeom>();
+  const hub = cells.length > 1 ? polyHub(cells) : null;
   for (const c of cells) {
     const info = cellInfo(toPts(c.poly), W, H);
     if (info.poly.length < 3) continue;
@@ -280,6 +285,8 @@ export function polyGeoms(cells: LayoutCell[], W: number, H: number): Map<string
       clip: "polygon(" + pts.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(",") + ")",
       ring: "M" + pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join("L") + "Z",
       face: { x: info.rect.x - bx, y: info.rect.y - by, w: info.rect.w, h: info.rect.h },
+      poly: pts,
+      hub: hub ? { x: hub.x * W - bx, y: hub.y * H - by } : null,
     });
   }
   return out;

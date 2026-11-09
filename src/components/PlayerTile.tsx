@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -17,7 +18,8 @@ import { useLifeFeedback } from "../hooks/useLifeFeedback";
 import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
-import { junctionFor, type TileJunction } from "../layout/junction";
+import { HUB_REACH, junctionFor, type TileJunction } from "../layout/junction";
+import { boxOf, clearSpot, faceFrame, type Box } from "../layout/polyPlace";
 import { seatHandleSpot, type SeatHandleSpot } from "../game/stickers";
 import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
@@ -143,6 +145,108 @@ function cornerTimer(j: TileJunction, rot: Rotation) {
   };
 }
 
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+function textWidth(text: string, el: Element): number {
+  if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return 0;
+  const cs = getComputedStyle(el);
+  measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return measureCtx.measureText(text).width;
+}
+
+/** Where ⋯ (left/top px) and the auto-placed timer (x/y % of the face) go in a freeform cell; null = usual spot. */
+interface PolySpots {
+  more: { x: number; y: number } | null;
+  pill: { x: number; y: number } | null;
+}
+const sameSpot = (a: { x: number; y: number } | null, b: { x: number; y: number } | null) =>
+  a === b || (!!a && !!b && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5);
+
+/**
+ * A narrow freeform cell's face has no free corner, so ⋯ would sit on a + / −
+ * sign and the timer against the life number. The cell has room outside its
+ * face: move each to the nearest clear spot inside the polygon, clear of the
+ * number, the signs and the menu hexagon (the timer also of ⋯ and the counter
+ * row). Measured in the face's own frame from the rendered sizes.
+ */
+function polySpots(cell: PolyGeom, rotation: Rotation, content: HTMLElement, life: string, autoPill: boolean): PolySpots {
+  const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
+  const poly = cell.poly.map(toLocal);
+  const blocks: Box[] = [];
+  const lifeEl = content.querySelector<HTMLElement>(".tile__life");
+  const lh = lifeEl ? lifeEl.offsetHeight : sh;
+  if (lifeEl) {
+    const fs = parseFloat(getComputedStyle(lifeEl).fontSize) || 0;
+    const nw = textWidth(life, lifeEl) * 1.1;
+    const nh = fs * 1.06;
+    blocks.push({ x: sw / 2 - nw / 2, y: lh / 2 - nh / 2 + 0.03 * fs, w: nw, h: nh });
+  }
+  const sign = content.querySelector<HTMLElement>(".tile__sign");
+  if (sign) {
+    const sf = parseFloat(getComputedStyle(sign).fontSize) || 0;
+    const gw = textWidth("+", sign) * 1.1;
+    blocks.push({ x: 0.07 * sw, y: sh / 2 - sf / 2, w: gw, h: sf }, { x: 0.93 * sw - gw, y: sh / 2 - sf / 2, w: gw, h: sf });
+  }
+  // The same, as rendered (the text's own box, the 6/9 underline, the sign
+  // spans), mapped back from the screen into the face's frame.
+  const cr = content.getBoundingClientRect();
+  const scr = faceFrame({ x: cr.left, y: cr.top, w: cr.width, h: cr.height }, rotation).toLocal;
+  const local = (r: DOMRect, pad = 0): Box => {
+    const b = boxOf([scr({ x: r.left, y: r.top }), scr({ x: r.right, y: r.bottom })]);
+    return { x: b.x - pad, y: b.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad };
+  };
+  if (lifeEl && typeof document.createRange === "function") {
+    const range = document.createRange();
+    range.selectNodeContents(lifeEl);
+    const r = range.getBoundingClientRect?.();
+    if (r && r.width > 0) blocks.push(local(r));
+    lifeEl.querySelectorAll(".digit--ambiguous").forEach((d) => blocks.push(local(d.getBoundingClientRect(), 4)));
+  }
+  content.querySelectorAll(".tile__sign").forEach((g) => {
+    const r = g.getBoundingClientRect();
+    if (r.width > 0) blocks.push(local(r));
+  });
+  if (cell.hub) {
+    const h = cell.hub;
+    blocks.push(
+      boxOf(
+        [
+          { x: h.x - HUB_REACH.left, y: h.y - HUB_REACH.up },
+          { x: h.x + HUB_REACH.right, y: h.y - HUB_REACH.up },
+          { x: h.x - HUB_REACH.left, y: h.y + HUB_REACH.down },
+          { x: h.x + HUB_REACH.right, y: h.y + HUB_REACH.down },
+        ].map(toLocal),
+      ),
+    );
+  }
+  let more: PolySpots["more"] = null;
+  let moreBox: Box | null = null;
+  const moreEl = content.querySelector<HTMLElement>(".tile__more");
+  if (moreEl) {
+    const w = moreEl.offsetWidth;
+    const h = moreEl.offsetHeight;
+    // Its CSS spot: bottom 6px, right 10px.
+    const prefer = { x: sw - 10 - w / 2, y: sh - 6 - h / 2 };
+    const spot = clearSpot(poly, blocks, w, h, prefer);
+    const c = spot ?? prefer;
+    moreBox = { x: c.x - w / 2, y: c.y - h / 2, w, h };
+    if (spot?.moved) more = { x: c.x - w / 2, y: c.y - h / 2 };
+  }
+  let pill: PolySpots["pill"] = null;
+  const pillEl = content.querySelector<HTMLElement>(".tile__pill");
+  if (autoPill && pillEl) {
+    const w = pillEl.offsetWidth;
+    const h = pillEl.offsetHeight;
+    const rowH = sh - lh;
+    const pb = [...blocks];
+    if (moreBox) pb.push(moreBox);
+    if (rowH > 1) pb.push({ x: 0, y: lh, w: sw, h: rowH });
+    const spot = clearSpot(poly, pb, w, h, { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh });
+    if (spot?.moved) pill = { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 };
+  }
+  return { more, pill };
+}
+
 export function PlayerTile({
   placement,
   onOpenDetail,
@@ -181,8 +285,13 @@ export function PlayerTile({
 
   const contentRef = useRef<HTMLDivElement>(null);
   const pinnedToCorner = timerPlacement === "corner";
+  // Freeform: the timer goes to a clear spot in the cell until it is dragged
+  // somewhere (corner mode cannot drag, so it is always placed).
+  const autoPill = !!cell && (pinnedToCorner || player?.timerPos?.x === undefined);
+  const [spots, setSpots] = useState<PolySpots | null>(null);
+  const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
   const pill = usePillGesture({
-    pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos } as TilePos & { x: number; y: number },
+    pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
     rotation: placement.rotation,
     pinned: pinnedToCorner,
     box: () => contentRef.current,
@@ -234,6 +343,14 @@ export function PlayerTile({
   }, [player?.life]);
   useEffect(() => clearSwingTimer, []);
 
+  // Re-measured every render (life digits, timer size and counters all move
+  // things); state only changes when a spot does.
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    const next = cell && content && player ? polySpots(cell, placement.rotation, content, String(player.life), autoPill) : null;
+    setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
+  });
+
   const isActive = turn.activePlayerId === pid;
 
   // Long-press the tile body (not a control) to make this seat the active turn
@@ -278,7 +395,7 @@ export function PlayerTile({
   const rotated = placement.rotation === 90 || placement.rotation === 270;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
-  const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...pill.live };
+  const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...autoPos, ...pill.live };
   const handle = seatHandleSpot(layout, pid);
   const junction = pinnedToCorner ? junctionFor(layout, pid) : null;
   const corner = junction ? cornerTimer(junction, placement.rotation) : null;
@@ -447,6 +564,7 @@ export function PlayerTile({
 
         <button
           className="tile__more"
+          style={spots?.more ? { left: spots.more.x, top: spots.more.y, right: "auto", bottom: "auto" } : undefined}
           onClick={() => onOpenDetail(pid)}
           aria-label="player details"
         >

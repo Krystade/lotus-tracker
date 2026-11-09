@@ -25,6 +25,50 @@ await page.reload();
 await page.waitForFunction(() => window.__store);
 const state = () => page.evaluate(() => window.__store.getState());
 
+// Narrow cells: ⋯ and the turn timer move to a clear spot in the cell. With
+// each seat active in turn, neither may overlap the life number, a + / − sign,
+// the menu hexagon or clock, or each other, and each must take its own tap.
+async function overlapCheck(label, shotSeat) {
+  const s0 = await state();
+  for (const p of s0.game.players) {
+    await page.evaluate((id) => window.__store.getState().setActivePlayer(id), p.id);
+    const r = await page.evaluate((id) => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const tile = document.querySelector(`.tile[data-pid="${id}"]`);
+      const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+      const lifeEl = tile.querySelector(".tile__life");
+      const range = document.createRange();
+      range.selectNodeContents(lifeEl);
+      const life = box(range);
+      // A sign's span box is its line box; the glyph is the middle of it.
+      const signs = [...tile.querySelectorAll(".tile__sign")].map((el) => {
+        const b = box(el), fs = parseFloat(getComputedStyle(el).fontSize);
+        const tall = b.h > b.w;
+        return tall ? { x: b.x, y: b.y, w: b.w, h: b.h } : { x: b.x, y: b.y + (b.h - fs) / 2, w: b.w, h: fs };
+      });
+      const more = box(tile.querySelector(".tile__more"));
+      const pillEl = tile.querySelector(".tile__pill");
+      const pill = pillEl ? box(pillEl) : null;
+      const hub = [".center__hex", ".center__clock"].map((q) => document.querySelector(q)).filter(Boolean).map(box);
+      const hits = (b, el) => { const e = document.elementFromPoint(b.x + b.w / 2, b.y + b.h / 2); return !!e && (e === el || el.contains(e)); };
+      res({ life, signs, more, pill, hub, moreHit: hits(more, tile.querySelector(".tile__more")), pillHit: pill ? hits(pill, pillEl) : null });
+    }))), p.id);
+    const ov = (a, b) => a.x < b.x + b.w - 0.5 && a.x + a.w > b.x + 0.5 && a.y < b.y + b.h - 0.5 && a.y + a.h > b.y + 0.5;
+    const bad = [];
+    for (const [name, el] of [["⋯", r.more], ["timer", r.pill]]) {
+      if (!el) continue;
+      if (ov(el, r.life)) bad.push(`${name}/number`);
+      r.signs.forEach((g, i) => ov(el, g) && bad.push(`${name}/${i ? "+" : "−"}`));
+      r.hub.forEach((h, i) => ov(el, h) && bad.push(`${name}/${i ? "clock" : "hexagon"}`));
+    }
+    if (r.pill && ov(r.pill, r.more)) bad.push("timer/⋯");
+    if (!r.moreHit) bad.push("⋯ not tappable");
+    if (r.pill && !r.pillHit) bad.push("timer not tappable");
+    if (!r.pill) bad.push("no timer");
+    check(bad.length === 0, `${label} ${p.name}: ⋯ and timer clear${bad.length ? " -- " + bad.join(", ") : ""}`);
+    if (p.id === shotSeat) await page.screenshot({ path: `${OUT}/${label}-active-${p.id}.png` });
+  }
+}
+
 async function openEditor() {
   await page.locator(".center__hex").tap();
   await page.getByRole("button", { name: "✥ Edit layout" }).tap();
@@ -47,6 +91,7 @@ check((await page.locator(".tile--poly").count()) === 4, "board draws 4 polygon 
 check((await page.locator(".tile__seat").count()) === 0, "no seat-move handle on a polygon layout");
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${OUT}/02-board-x.png` });
+await overlapCheck("02x", "p3");
 
 // X: cells meet at the board's middle, so that is where the hub goes (the
 // hexagon-and-clock column is centred on it as a whole).
@@ -118,6 +163,7 @@ if (await page.locator(".fe").count()) console.log("     editor still open; toas
 check(s.game.players.length === 5 && s.game.layout.cells?.length === 5, `confirm gives 5 players / cells (${s.game.players.length})`);
 check(s.freeTemplates.length === 1, `custom layout saved as a template (${s.freeTemplates.length})`);
 await page.screenshot({ path: `${OUT}/05-board-5.png` });
+await overlapCheck("05five", "p2");
 for (const p of s.game.players) {
   const before = (await state()).game.players.find((q) => q.id === p.id).life;
   await page.getByRole("button", { name: `${p.name} increase life` }).tap();
