@@ -6,6 +6,8 @@ import {
   type ArcadeBests,
   type CounterKey,
   type CounterSet,
+  type FreeSeat,
+  type FreeTemplate,
   type GameState,
   type GameSetup,
   type LayoutConfig,
@@ -32,6 +34,7 @@ import { isBetter } from "../game/arcade/bests";
 import { appendLog, diffGame, sanitizeLog } from "../game/log";
 import { giveSticker, placeSticker, remapStickers, sanitizeStickers } from "../game/stickers";
 import { gapFree } from "../layout/table";
+import { sanitizeFreeform, sanitizeTemplates, templateKey, toTemplateSeats, BUILTIN_TEMPLATES } from "../layout/freeform";
 import type { Rotation } from "./types";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
@@ -175,6 +178,8 @@ export interface StoreState {
   game: GameState;
   settings: Settings;
   customLayouts: LayoutConfig[];
+  /** Saved freeform arrangements (the built-ins X and Grid live in code). */
+  freeTemplates: FreeTemplate[];
 
   // lifecycle
   profiles: PlayerProfile[];
@@ -246,6 +251,16 @@ export interface StoreState {
   /** Put the layout and stickers back exactly as they were. */
   restoreSeats: (layout: LayoutConfig, stickers: GameState["stickers"]) => void;
   deleteCustomLayout: (id: string) => void;
+  /**
+   * Confirm a freeform edit. `keep[i]` is the existing player who takes seat
+   * i, or null for a new player; anyone left out is removed. Players keep
+   * their life, counters and colour; ids are renumbered to the seats.
+   */
+  applyFreeform: (layout: LayoutConfig, keep: (string | null)[]) => void;
+  /** Save seats as a template; returns the name it was saved under, or the
+   * name of the identical template already there. */
+  saveFreeTemplate: (seats: FreeSeat[]) => { name: string; fresh: boolean };
+  deleteFreeTemplate: (id: string) => void;
 
   // settings
   updateSettings: (patch: Partial<Settings>) => void;
@@ -264,7 +279,7 @@ function updatePlayer(
 
 export const useStore = create<StoreState>()(
   persist(
-    (rawSet) => {
+    (rawSet, get) => {
       type Next = Partial<StoreState> | ((s: StoreState) => Partial<StoreState>);
       const set = (next: Next) =>
         rawSet((s) => {
@@ -277,6 +292,7 @@ export const useStore = create<StoreState>()(
       game: newGameState(4, 40, DEFAULT_SETTINGS),
       settings: DEFAULT_SETTINGS,
       customLayouts: [],
+      freeTemplates: [],
       profiles: [],
       setups: [],
       arcadeBests: {},
@@ -780,6 +796,10 @@ export const useStore = create<StoreState>()(
             id: old.builtIn ? `arranged-${old.playerCount}` : old.id,
             builtIn: false,
             placements: old.placements.map((p) => (p.playerId === playerId ? { ...p, rotation } : p)),
+            // A freeform cell draws from its own rotation: keep the two in step.
+            ...(old.cells
+              ? { cells: old.cells.map((c) => (c.playerId === playerId ? { ...c, rotation } : c)) }
+              : {}),
           };
           return {
             game: { ...s.game, layout, stickers: remapStickers(s.game.stickers, old, layout) },
@@ -812,6 +832,96 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           customLayouts: s.customLayouts.filter((l) => l.id !== id),
         })),
+
+      applyFreeform: (layout, keep) =>
+        set((s) => {
+          const n = keep.length;
+          if (n < 1 || n > 6) return {};
+          const ids = keep.map((_, i) => `p${i}`);
+          if (!layoutCoversSeats(layout, ids)) return {};
+          const old = new Map(s.game.players.map((p) => [p.id, p]));
+          const idMap = new Map<string, string>();
+          keep.forEach((k, i) => {
+            if (k && old.has(k) && !idMap.has(k)) idMap.set(k, ids[i]);
+          });
+          const kept = [...idMap.keys()].map((k) => old.get(k)!);
+          const usedColors = new Set(kept.map((p) => p.color));
+          const usedNames = new Set(kept.map((p) => p.name));
+          const players: Player[] = keep.map((k, i) => {
+            const id = ids[i];
+            const src = k && idMap.get(k) === id ? old.get(k) : undefined;
+            if (src) {
+              const commanderDamage: Record<string, number> = {};
+              for (const [from, v] of Object.entries(src.commanderDamage)) {
+                const to = idMap.get(from);
+                if (to && to !== id) commanderDamage[to] = v;
+              }
+              const pinned = (src.pinned ?? []).flatMap((key) => {
+                if (!key.startsWith("cmdr:")) return [key];
+                const to = idMap.get(key.slice(5));
+                return to ? [`cmdr:${to}`] : [];
+              });
+              return { ...src, id, commanderDamage, pinned };
+            }
+            const fresh = createPlayer(i, s.game.startingLife);
+            let seat = 0;
+            while (seat < 6 && usedColors.has(colorForSeat(seat))) seat++;
+            fresh.color = colorForSeat(seat < 6 ? seat : i);
+            usedColors.add(fresh.color);
+            let nm = 1;
+            while (usedNames.has(`P${nm}`)) nm++;
+            fresh.name = `P${nm}`;
+            usedNames.add(fresh.name);
+            return fresh;
+          });
+          const idSet = new Set(ids);
+          const stickers = sanitizeStickers(
+            s.game.stickers
+              .filter((st) => idMap.has(st.holder))
+              .map((st) => ({ ...st, holder: idMap.get(st.holder)! })),
+            idSet,
+            layout,
+          );
+          const log = s.game.log.flatMap((e) => {
+            const pid = idMap.get(e.playerId);
+            if (!pid) return [];
+            const next = { ...e, playerId: pid };
+            if (e.from !== undefined) {
+              const from = idMap.get(e.from);
+              if (from) next.from = from;
+              else delete next.from;
+            }
+            return [next];
+          });
+          const active = idMap.get(s.game.turn.activePlayerId) ?? ids[0];
+          return {
+            game: {
+              ...s.game,
+              players,
+              layout,
+              stickers,
+              log,
+              turn: { ...s.game.turn, activePlayerId: active },
+            },
+          };
+        }),
+
+      saveFreeTemplate: (seats) => {
+        const tpl = toTemplateSeats(seats);
+        const key = templateKey(tpl);
+        const s = get();
+        const same = [...BUILTIN_TEMPLATES, ...s.freeTemplates].find((t) => templateKey(t.seats) === key);
+        if (same) return { name: same.name, fresh: false };
+        let n = 1;
+        const names = new Set(s.freeTemplates.map((t) => t.name));
+        while (names.has(`${tpl.length}P · #${n}`)) n++;
+        const name = `${tpl.length}P · #${n}`;
+        set((st) => ({ freeTemplates: [{ id: `ft-${uid()}`, name, seats: tpl }, ...st.freeTemplates] }));
+        return { name, fresh: true };
+      },
+
+      deleteFreeTemplate: (id) =>
+        set((s) => ({ freeTemplates: s.freeTemplates.filter((t) => t.id !== id) })),
 
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -867,7 +977,8 @@ export const useStore = create<StoreState>()(
             players.map((pl) => pl.id),
           );
         const ids = new Set(players.map((pl) => pl.id));
-        const layout = layoutOk ? rawGame.layout : defaultLayoutFor(players.length);
+        // A freeform layout whose cells are damaged falls back to its grid.
+        const layout = layoutOk ? sanitizeFreeform(rawGame.layout) : defaultLayoutFor(players.length);
         const game = {
           ...rawGame,
           stickers: sanitizeStickers(rawGame.stickers, ids, layout),
@@ -885,6 +996,7 @@ export const useStore = create<StoreState>()(
             current.settings,
           ),
           customLayouts: p.customLayouts ?? current.customLayouts,
+          freeTemplates: sanitizeTemplates(p.freeTemplates),
           profiles: Array.isArray(p.profiles) ? p.profiles : current.profiles,
           setups: Array.isArray(p.setups) ? p.setups : current.setups,
           arcadeBests: sanitizeBests(p.arcadeBests),

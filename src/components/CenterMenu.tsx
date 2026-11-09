@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 import { formatGameClock } from "../util/format";
 import { STICKERS } from "../game/stickers";
 import { boardHub, gapShift } from "../layout/junction";
+import { useLayoutEdit } from "./layoutEdit";
 
 interface Props {
   onNewGame: () => void;
@@ -42,11 +43,13 @@ export function CenterMenu({
   const resetTurnTimer = useStore((s) => s.resetTurnTimer);
   const layout = useStore((s) => s.game.layout);
   const hub = useMemo(() => boardHub(layout), [layout]);
+  const startEdit = useLayoutEdit((s) => s.start);
   const hubStyle = {
     "--hub-x": String(hub.x),
     "--hub-y": String(hub.y),
-    "--hub-gx": String(gapShift(hub.x)),
-    "--hub-gy": String(gapShift(hub.y)),
+    // A freeform hub is a cell corner already centred in its gaps.
+    "--hub-gx": layout.cells ? "0" : String(gapShift(hub.x)),
+    "--hub-gy": layout.cells ? "0" : String(gapShift(hub.y)),
   } as CSSProperties;
 
   const close = () => {
@@ -156,6 +159,9 @@ export function CenterMenu({
               </button>
               <button className="sheet__row" onClick={act(onLayouts)}>
                 ▦ Layout
+              </button>
+              <button className="sheet__row" onClick={act(startEdit)}>
+                ✥ Edit layout
               </button>
               <button className="sheet__row" onClick={act(onSettings)}>
                 ⚙ Settings

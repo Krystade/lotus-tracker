@@ -74,14 +74,53 @@ export interface Placement {
   rotation: Rotation;
 }
 
+/**
+ * A freeform seat's polygon, drawn instead of its grid placement. `poly` is
+ * the raw (gap-free) convex cell in unit-square board coordinates; the 8px
+ * gaps are cut when the board's size is known.
+ */
+export interface LayoutCell {
+  playerId: string;
+  poly: [number, number][];
+  rotation: Rotation;
+}
+
+/** A freeform seat marker, unit-square board coordinates. Its centre is the
+ * cell's site and its area the cell's weight; `rot` null = face the nearest edge. */
+export interface FreeSeat {
+  playerId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rot: Rotation | null;
+}
+
 export interface LayoutConfig {
   id: string;
   name: string;
   playerCount: number;
   rows: number;
   cols: number;
+  /**
+   * Always present, also on a freeform layout (where they approximate each
+   * cell's face rectangle on a fine grid), so everything keyed on seats --
+   * validation, stickers, the custom editor -- keeps working.
+   */
   placements: Placement[];
   builtIn: boolean;
+  /** Freeform: when present the board draws these polygons, not the grid. */
+  cells?: LayoutCell[];
+  /** Freeform: the seats the cells were made from, to edit them again. */
+  seats?: FreeSeat[];
+}
+
+/** A saved freeform arrangement: seats only, cells are recomputed. */
+export interface FreeTemplate {
+  id: string;
+  name: string;
+  /** Unit-square seat markers, in seat order; their count is the pod size. */
+  seats: Omit<FreeSeat, "playerId">[];
 }
 
 export type TurnTimerPlacement = "drag" | "corner";

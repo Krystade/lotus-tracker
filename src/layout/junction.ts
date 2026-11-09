@@ -1,4 +1,5 @@
 import type { LayoutConfig, Placement } from "../state/types";
+import { polyHub } from "./freeform";
 
 /**
  * Where on a tile's edge the "corner timer" sits: the point on its border that
@@ -66,7 +67,9 @@ function hubCells(layout: Grid): { x: number; y: number } {
  * lands on someone's life total. Ties go to more tiles meeting, then the
  * higher point, then the one further left. One seat: the middle.
  */
-export function boardHub(layout: Grid): { x: number; y: number } {
+export function boardHub(layout: Grid & Pick<LayoutConfig, "cells">): { x: number; y: number } {
+  // Freeform: the cell junction nearest the middle.
+  if (layout.cells && layout.cells.length > 1) return polyHub(layout.cells);
   const h = hubCells(layout);
   return { x: h.x / layout.cols, y: h.y / layout.rows };
 }
@@ -95,7 +98,9 @@ export const gapShift = (f: number) => (f > 0 && f < 1 ? f - 0.5 : 0);
  * Ties go to the point nearest the hub (the middle of the board in every
  * built-in), then to scan order, so the answer never flips between renders.
  */
-export function junctionFor(layout: Grid, playerId: string): TileJunction | null {
+export function junctionFor(layout: Grid & Pick<LayoutConfig, "cells">, playerId: string): TileJunction | null {
+  // Freeform cells have no grid corners; the timer keeps its dragged spot.
+  if (layout.cells) return null;
   const self = layout.placements.find((p) => p.playerId === playerId);
   if (!self) return null;
   const me = rectOf(self);

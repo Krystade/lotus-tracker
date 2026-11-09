@@ -1,5 +1,6 @@
 import type { LayoutConfig } from "../state/types";
 import { readTable, tableRing } from "./table";
+import { polyTurnOrder } from "./freeform";
 
 interface Seat {
   id: string;
@@ -19,6 +20,8 @@ interface Seat {
  * read order.test.ts first.
  */
 export function clockwiseSeatOrder(layout: LayoutConfig): string[] {
+  // Freeform: clockwise by cell centroid round the board centre.
+  if (layout.cells && layout.cells.length === layout.placements.length) return polyTurnOrder(layout.cells);
   const seats: Seat[] = layout.placements.map((p) => ({
     id: p.playerId,
     // Center of the placement, so a seat spanning two cells sits at its middle.

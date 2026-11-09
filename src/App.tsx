@@ -14,6 +14,7 @@ import { DicePanel } from "./components/DicePanel";
 import { ArcadeSeatPicker } from "./components/ArcadeSeatPicker";
 import { RandomFirstOverlay } from "./components/RandomFirstOverlay";
 import { LogPanel } from "./components/LogPanel";
+import { useLayoutEdit } from "./components/layoutEdit";
 
 type Overlay =
   | null
@@ -61,6 +62,7 @@ export default function App() {
     return () => window.removeEventListener("pointerdown", onFirst);
   }, []);
 
+  const editingLayout = useLayoutEdit((s) => s.editing);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   // Which seats have the pass-the-time games open -- any number of them at
@@ -104,7 +106,7 @@ export default function App() {
 
   return (
     <div
-      className={`app${still ? " app--still" : ""}`}
+      className={`app${still ? " app--still" : ""}${editingLayout ? " app--editing" : ""}`}
       style={
         {
           "--look-speed": String(lookSpeed),
@@ -117,6 +119,7 @@ export default function App() {
         arcadeSeats={arcadeSeats}
         onCloseArcade={(id) => setArcadeSeats((s) => s.filter((x) => x !== id))}
       />
+      {!editingLayout && (
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}
         onSettings={() => setOverlay("settings")}
@@ -126,6 +129,7 @@ export default function App() {
         onRandomFirst={() => setOverlay("random")}
         onLog={() => setOverlay("log")}
       />
+      )}
 
       {detailId && (
         <PlayerDetail

@@ -23,6 +23,7 @@ import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
 import { warnLevel } from "../game/turn";
 import type { Placement, Rotation, TilePos } from "../state/types";
+import type { PolyGeom } from "../layout/freeform";
 
 interface Props {
   placement: Placement;
@@ -31,6 +32,12 @@ interface Props {
   arcadeOpen: boolean;
   onCloseArcade: () => void;
   boardRef?: React.RefObject<HTMLDivElement>;
+  /**
+   * Freeform layouts: the tile is its cell's bounding box clipped to the
+   * polygon, and everything that sits on a tile (life, +/-, timer, counters)
+   * goes in the cell's largest inscribed rectangle. No seat-move handle here.
+   */
+  cell?: PolyGeom;
 }
 
 // Sits just above the counter-chip row that owns the bottom edge. Still
@@ -142,6 +149,7 @@ export function PlayerTile({
   arcadeOpen,
   onCloseArcade,
   boardRef,
+  cell,
 }: Props) {
   const pid = placement.playerId;
   const seatDrag = useSeatUi((s) => (s.drag?.pid === pid ? s.drag : null));
@@ -283,29 +291,53 @@ export function PlayerTile({
         transform: `translate(-50%, -50%) rotate(${pillPos.angle ?? 0}deg)`,
       };
 
-  const contentStyle = {
-    transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
-    width: rotated ? "100cqh" : "100%",
-    height: rotated ? "100cqw" : "100%",
-    // The content box's own width and height, for anything sized to fit it.
-    "--lw": rotated ? "100cqh" : "100cqw",
-    "--lh": rotated ? "100cqw" : "100cqh",
-  } as CSSProperties;
+  const faceW = cell ? (rotated ? cell.face.h : cell.face.w) : 0;
+  const faceH = cell ? (rotated ? cell.face.w : cell.face.h) : 0;
+  const contentStyle = (
+    cell
+      ? {
+          left: `${cell.face.x + cell.face.w / 2}px`,
+          top: `${cell.face.y + cell.face.h / 2}px`,
+          transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
+          width: `${faceW}px`,
+          height: `${faceH}px`,
+          "--lw": `${faceW}px`,
+          "--lh": `${faceH}px`,
+        }
+      : {
+          transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
+          width: rotated ? "100cqh" : "100%",
+          height: rotated ? "100cqw" : "100%",
+          // The content box's own width and height, for anything sized to fit it.
+          "--lw": rotated ? "100cqh" : "100cqw",
+          "--lh": rotated ? "100cqw" : "100cqh",
+        }
+  ) as unknown as CSSProperties;
 
   // Contrast comes from the look's declared base colour, not from the rendered
   // pixels, so a gradient, striped or animated tile is as legible as a flat
   // one. The style's CSS reads the --look-* custom properties.
   const look = resolveLook(player.look, player.color);
   const tileStyle: CSSProperties = {
-    gridRow: `${placement.row} / span ${placement.rowSpan}`,
-    gridColumn: `${placement.col} / span ${placement.colSpan}`,
+    ...(cell
+      ? {
+          left: `${cell.box.x}px`,
+          top: `${cell.box.y}px`,
+          width: `${cell.box.w}px`,
+          height: `${cell.box.h}px`,
+          clipPath: cell.clip,
+        }
+      : {
+          gridRow: `${placement.row} / span ${placement.rowSpan}`,
+          gridColumn: `${placement.col} / span ${placement.colSpan}`,
+        }),
     color: textOn(look.base),
     ...look.vars,
   } as CSSProperties;
 
   return (
     <div
-      className={`tile look${player.eliminated ? " tile--out" : ""}${
+      className={`tile look${cell ? " tile--poly" : ""}${player.eliminated ? " tile--out" : ""}${
         lethal ? " tile--lethal" : ""
       }${isActive && !player.eliminated ? " tile--active" : ""}`}
       style={tileStyle}
@@ -322,8 +354,13 @@ export function PlayerTile({
           ))}
         </div>
       )}
+      {cell && (
+        <svg className="tile__ring" aria-hidden="true" width={cell.box.w} height={cell.box.h}>
+          <path d={cell.ring} />
+        </svg>
+      )}
       <div
-        className="tile__content"
+        className={`tile__content${cell ? " tile__content--poly" : ""}`}
         ref={contentRef}
         style={contentStyle}
         onPointerDown={onContentDown}
@@ -390,7 +427,7 @@ export function PlayerTile({
 
         <CounterSteppers player={player} />
 
-        {playerCount > 1 && !arcadeOpen && (!anyDrag || seatDrag) && (
+        {playerCount > 1 && !cell && !arcadeOpen && (!anyDrag || seatDrag) && (
           <button
             className={`tile__seat tile__seat--${handle.side}${seatDrag?.arming ? " is-arming" : ""}`}
             style={handleStyle(handle)}

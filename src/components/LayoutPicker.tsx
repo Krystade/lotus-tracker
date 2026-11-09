@@ -3,6 +3,10 @@ import { useStore } from "../state/store";
 import { colorForSeat } from "../layout/colors";
 import { allBuiltInPresets } from "../layout/presets";
 import type { LayoutConfig, Placement, Rotation } from "../state/types";
+import { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats, toPts } from "../layout/freeform";
+import { defaultLayoutFor } from "../layout/presets";
+import { useLayoutEdit } from "./layoutEdit";
+import { Thumb } from "./FreeformEditor";
 
 interface Props {
   onClose: () => void;
@@ -16,6 +20,21 @@ function seatOf(playerId: string): number {
 
 /** Mini colored preview of a layout on a small grid. */
 function Mini({ layout }: { layout: LayoutConfig }) {
+  if (layout.cells) {
+    return (
+      <svg className="mini mini--poly" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+        {layout.cells.map((c) => (
+          <polygon
+            key={c.playerId}
+            points={toPts(c.poly).map((p) => `${p.x},${p.y}`).join(" ")}
+            fill={colorForSeat(seatOf(c.playerId))}
+            stroke="#000"
+            strokeWidth="0.03"
+          />
+        ))}
+      </svg>
+    );
+  }
   return (
     <div
       className="mini"
@@ -48,6 +67,9 @@ export function LayoutPicker({ onClose }: Props) {
   const deleteCustomLayout = useStore((s) => s.deleteCustomLayout);
   const customLayouts = useStore((s) => s.customLayouts);
   const builtIns = useMemo(() => allBuiltInPresets(), []);
+  const freeTemplates = useStore((s) => s.freeTemplates);
+  const deleteFreeTemplate = useStore((s) => s.deleteFreeTemplate);
+  const startEdit = useLayoutEdit((s) => s.start);
 
   const apply = (layout: LayoutConfig) => {
     applyLayout(layout);
@@ -81,6 +103,36 @@ export function LayoutPicker({ onClose }: Props) {
         <div className="panel__body">
           {tab === "presets" ? (
             <>
+              <button
+                className="btn btn--primary layout-edit-btn"
+                onClick={() => {
+                  startEdit();
+                  onClose();
+                }}
+              >
+                ✥ Edit layout (freeform)
+              </button>
+              <h3>Freeform templates</h3>
+              <div className="preset-grid">
+                {[...BUILTIN_TEMPLATES, ...freeTemplates].map((t) => (
+                  <div key={t.id} className="preset preset--custom">
+                    <button onClick={() => apply(buildFreeLayout(templateSeats(t), t.name))} aria-label={`apply template ${t.name}`}>
+                      <Thumb tpl={t} w={44} h={64} />
+                      <span>{t.name}</span>
+                    </button>
+                    {!BUILTIN_TEMPLATES.includes(t) && (
+                      <button
+                        className="preset__del"
+                        onClick={() => deleteFreeTemplate(t.id)}
+                        aria-label="delete template"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <h3>Presets</h3>
               <div className="preset-grid">
                 {builtIns.map((l) => (
                   <button key={l.id} className="preset" onClick={() => apply(l)}>
@@ -135,7 +187,9 @@ function CustomEditor({
   onApply: (l: LayoutConfig) => void;
   onSave: (name: string, l: LayoutConfig) => void;
 }) {
-  const current = useStore((s) => s.game.layout);
+  const live = useStore((s) => s.game.layout);
+  // A freeform layout has no grid to paint on: start from the preset.
+  const current = live.cells ? defaultLayoutFor(live.playerCount) : live;
   const [rows, setRows] = useState(current.rows);
   const [cols, setCols] = useState(current.cols);
   const [paint, setPaint] = useState(0);
