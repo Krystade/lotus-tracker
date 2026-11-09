@@ -247,6 +247,76 @@ function polySpots(cell: PolyGeom, rotation: Rotation, content: HTMLElement, lif
   return { more, pill };
 }
 
+/**
+ * A grid tile's face is the whole tile, but its default timer spot (just
+ * above the counter row) lands on the life number wherever the number fills
+ * the tile -- every rotated seat, most of all. Same search as a freeform
+ * cell: the nearest spot inside the face clear of the number's ink, the
+ * signs, ⋯, the seat handle, the counter row and the hub hexagon + clock,
+ * all as rendered and mapped into the face's own frame. null = usual spot.
+ */
+function gridPill(rotation: Rotation, content: HTMLElement): { x: number; y: number } | null {
+  const pillEl = content.querySelector<HTMLElement>(".tile__pill");
+  if (!pillEl || pillEl.classList.contains("tile__pill--corner")) return null;
+  const sw = content.offsetWidth;
+  const sh = content.offsetHeight;
+  if (!sw || !sh) return null;
+  const cr = content.getBoundingClientRect();
+  const scr = faceFrame({ x: cr.left, y: cr.top, w: cr.width, h: cr.height }, rotation).toLocal;
+  const local = (r: DOMRect, pad = 0): Box => {
+    const b = boxOf([scr({ x: r.left, y: r.top }), scr({ x: r.right, y: r.bottom })]);
+    return { x: b.x - pad, y: b.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad };
+  };
+  const blocks: Box[] = [];
+  const add = (el: Element | null, pad = 0) => {
+    const r = el?.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0) blocks.push(local(r, pad));
+  };
+  const lifeEl = content.querySelector<HTMLElement>(".tile__life");
+  const lh = lifeEl ? lifeEl.offsetHeight : sh;
+  if (lifeEl && typeof document.createRange === "function") {
+    const range = document.createRange();
+    range.selectNodeContents(lifeEl);
+    const r = range.getBoundingClientRect?.();
+    if (r && r.width > 0) {
+      // The digits' ink, not the font's line box: the box above and below
+      // the figures is empty and is where the timer fits on a short tile.
+      const b = local(r);
+      if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
+      if (measureCtx) {
+        const cs = getComputedStyle(lifeEl);
+        measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const m = measureCtx.measureText(lifeEl.textContent ?? "");
+        const top = (m.fontBoundingBoxAscent ?? 0) - m.actualBoundingBoxAscent;
+        const bot = (m.fontBoundingBoxDescent ?? 0) - m.actualBoundingBoxDescent;
+        if (top > 0 && bot >= 0 && top + bot < b.h) {
+          b.y += top;
+          b.h -= top + bot;
+        }
+      }
+      // A few px of air past the ink: touching still reads as "on the number".
+      blocks.push({ x: b.x - 2, y: b.y - 2, w: b.w + 4, h: b.h + 4 });
+    }
+    lifeEl.querySelectorAll(".digit--ambiguous").forEach((d) => add(d, 4));
+  }
+  content.querySelectorAll(".tile__sign").forEach((g) => add(g));
+  add(content.querySelector(".tile__more"));
+  add(content.querySelector(".tile__seat"));
+  add(document.querySelector(".center__hex"));
+  add(document.querySelector(".center__clock"));
+  if (sh - lh > 1) blocks.push({ x: 0, y: lh, w: sw, h: sh - lh });
+  const poly = [
+    { x: 0, y: 0 },
+    { x: sw, y: 0 },
+    { x: sw, y: sh },
+    { x: 0, y: sh },
+  ];
+  const w = pillEl.offsetWidth;
+  const h = pillEl.offsetHeight;
+  const spot = clearSpot(poly, blocks, w, h, { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh });
+  return spot?.moved ? { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 } : null;
+}
+
 export function PlayerTile({
   placement,
   onOpenDetail,
@@ -285,9 +355,10 @@ export function PlayerTile({
 
   const contentRef = useRef<HTMLDivElement>(null);
   const pinnedToCorner = timerPlacement === "corner";
-  // Freeform: the timer goes to a clear spot in the cell until it is dragged
-  // somewhere (corner mode cannot drag, so it is always placed).
-  const autoPill = !!cell && (pinnedToCorner || player?.timerPos?.x === undefined);
+  // The timer goes to a clear spot in the tile until it is dragged somewhere.
+  // Freeform corner mode cannot drag, so it is always placed; a grid tile's
+  // corner mode is the corner disc instead.
+  const autoPill = cell ? pinnedToCorner || player?.timerPos?.x === undefined : !pinnedToCorner && player?.timerPos?.x === undefined;
   const [spots, setSpots] = useState<PolySpots | null>(null);
   const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
   const pill = usePillGesture({
@@ -347,7 +418,10 @@ export function PlayerTile({
   // things); state only changes when a spot does.
   useLayoutEffect(() => {
     const content = contentRef.current;
-    const next = cell && content && player ? polySpots(cell, placement.rotation, content, String(player.life), autoPill) : null;
+    const next =
+      !content || !player ? null
+      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill)
+      : { more: null, pill: autoPill ? gridPill(placement.rotation, content) : null };
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
   });
 
