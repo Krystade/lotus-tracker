@@ -119,7 +119,17 @@ const measure = (seat) =>
         }
       : null;
     const kind = pill?.classList.contains("tile__pill--quarter") ? "quarter" : pill?.classList.contains("tile__pill--half") ? "half" : "pill";
-    return { pill: r(pill), face, kind, tile: r(tile), blocks, signTaps, pillInTile: !!pill && tile.contains(pill) };
+    // The disc's centre on screen: a probe at (--cx, --cy) inside the pill.
+    let centre = null;
+    if (pill?.classList.contains("tile__pill--corner")) {
+      const p = document.createElement("i");
+      p.style.cssText = "position:absolute;left:var(--cx);top:var(--cy);width:0;height:0";
+      pill.appendChild(p);
+      const q = p.getBoundingClientRect();
+      p.remove();
+      centre = { x: q.left, y: q.top };
+    }
+    return { pill: r(pill), face, kind, centre, tile: r(tile), blocks, signTaps, pillInTile: !!pill && tile.contains(pill) };
   }, seat);
 
 const overlap = (a, c) => !!a && !!c && a.x0 < c.x1 && c.x0 < a.x1 && a.y0 < c.y1 && c.y0 < a.y1;
@@ -129,15 +139,13 @@ const discHits = (c, rad, q) => {
   const dy = Math.max(q.y0 - c.y, 0, c.y - q.y1);
   return Math.hypot(dx, dy) < rad;
 };
-// The corner timer's disc, from which of its box edges are flush with the tile.
+// The corner timer's disc: centred where the seats meet (half a gap past
+// the tile's edge, which clips it), radius the box's long side for a quarter
+// and half of it for a half disc.
 function disc(m) {
-  const p = m.pill, t = m.tile;
-  const fl = { l: Math.abs(p.x0 - t.x0) < 1.5, r: Math.abs(p.x1 - t.x1) < 1.5, t: Math.abs(p.y0 - t.y0) < 1.5, b: Math.abs(p.y1 - t.y1) < 1.5 };
+  const p = m.pill;
   const w = p.x1 - p.x0, h = p.y1 - p.y0;
-  if (m.kind === "quarter") return { c: { x: fl.l ? p.x0 : p.x1, y: fl.t ? p.y0 : p.y1 }, rad: Math.max(w, h) };
-  // Half disc: centre on the middle of its flush edge.
-  if (w >= h) return { c: { x: (p.x0 + p.x1) / 2, y: fl.t ? p.y0 : p.y1 }, rad: w / 2 };
-  return { c: { x: fl.l ? p.x0 : p.x1, y: (p.y0 + p.y1) / 2 }, rad: h / 2 };
+  return { c: m.centre, rad: m.kind === "quarter" ? Math.max(w, h) : Math.max(w, h) / 2 };
 }
 const GAP = 3;
 function hits(m) {

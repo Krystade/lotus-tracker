@@ -46,20 +46,12 @@ interface Props {
 // draggable anywhere; this is only where it starts.
 const DEFAULT_TIMER_POS: TilePos = { x: 50, y: 76 };
 
-// Corner placement. The pill hugs the edge of the tile the junction is on --
-// in every built-in layout that is the tile's own top edge, where the +/-
-// zones (the middle 56% of the height) do not reach -- so a near-miss on
-// life never passes the turn. Along that edge it keeps clear of the tile's
-// rounded corner or, where the junction is the middle of the board, of the
-// menu hexagon and the game clock under it. Screen px.
-//
-// The hexagon-and-clock column is centred as a whole, so the hexagon sits
-// ~12px above the board's middle; on a notched phone the safe areas push the
-// board's middle a further ~8px down from the screen's. Hence up > sideways.
-const HEX_CLEARANCE = { left: 40, right: 40, up: 56, down: 50 };
-// Corner timer at the board's middle: the face sits this far out along both
-// edges, clear of the hexagon (27px) and the clock tucked under it.
+// Corner timer at the board's middle: the menu hexagon and the game clock
+// under it sit on the disc's centre, so the face sits this far out from it
+// along the diagonal, clear of the hexagon (27px) and the clock.
 const HEX_HOLE = 50;
+// How far the seat handle (styles.css .tile__seat) reaches from its corner along the edge, plus air.
+const SEAT_HANDLE_REACH = 5 + 44 + 4;
 
 const LOCAL_TO_SCREEN: Record<Rotation, Rotation> = { 0: 0, 90: 270, 180: 180, 270: 90 };
 
@@ -70,26 +62,36 @@ function handleStyle(h: SeatHandleSpot): CSSProperties | undefined {
   return undefined;
 }
 
+/** `calc()` for a length of `pct`% of the box plus `gaps` grid gaps. */
+const at = (pct: number, gaps: number) => `calc(${pct}% + ${gaps} * var(--gap))`;
+
 /**
- * "corner" mode: the timer fills the corner of the tile where the most seats
- * meet, flush against both edges, with a rounded inner edge -- a quarter
- * disc. Where that point is the middle of an edge (two seats head to head)
- * it is a half disc flush against the edge, beside the menu hexagon.
+ * "corner" mode: the timer is a disc centred exactly on the point of the
+ * tile's border where the most seats meet -- the middle of the grid gap
+ * there, which in every built-in is the hub under the menu hexagon. The
+ * tile clips it to its own share: a quarter disc where that point is the
+ * tile's corner, a half disc where it is the middle of an edge (a seat
+ * spanning the board, head to head with the others). The box reaches half
+ * a gap past the tile's edge so its centre is the point itself.
  * Everything here is in the tile's own (rotated) frame.
  */
 function cornerTimer(j: TileJunction, rot: Rotation) {
   const [ax, ay] = screenToLocal(rot, j.fx - 0.5, j.fy - 0.5);
   const [dx, dy] = screenToLocal(rot, j.sx, j.sy).map(Math.sign) as [number, number];
+  // The centre: px% / py% of the box plus gx / gy grid gaps, local axes.
+  const px = Math.round((0.5 + ax) * 1e4) / 100;
+  const py = Math.round((0.5 + ay) * 1e4) / 100;
+  const [gx, gy] = screenToLocal(rot, j.gx, j.gy);
   if (dx !== 0 && dy !== 0) {
     // A corner: (dx, dy) points from it into the tile.
     const from = dx > 0 ? (dy > 0 ? 90 : 0) : dy > 0 ? 180 : 270;
     return {
       kind: "quarter" as const,
       style: {
-        left: dx > 0 ? 0 : "auto",
-        right: dx < 0 ? 0 : "auto",
-        top: dy > 0 ? 0 : "auto",
-        bottom: dy < 0 ? 0 : "auto",
+        left: dx > 0 ? at(0, gx) : "auto",
+        right: dx < 0 ? at(0, -gx) : "auto",
+        top: dy > 0 ? at(0, gy) : "auto",
+        bottom: dy < 0 ? at(0, -gy) : "auto",
         "--cx": dx > 0 ? "0%" : "100%",
         "--cy": dy > 0 ? "0%" : "100%",
         "--from": `${from}deg`,
@@ -115,26 +117,41 @@ function cornerTimer(j: TileJunction, rot: Rotation) {
       } as unknown as CSSProperties,
     };
   }
-  // Middle of an edge. Sit beside the hexagon that covers that point.
+  // Middle of an edge: a half disc centred on it, flush against that edge.
   const hugY = dy !== 0;
   const into = hugY ? dy : dx;
-  // Always to the tile's own right of the point (its +x or +y).
-  const unit: [number, number] = hugY ? [1, 0] : [0, 1];
-  const [sx, sy] = screenToLocal(LOCAL_TO_SCREEN[rot], unit[0], unit[1]);
-  const need =
-    sx > 0 ? HEX_CLEARANCE.right : sx < 0 ? HEX_CLEARANCE.left : sy > 0 ? HEX_CLEARANCE.down : HEX_CLEARANCE.up;
-  const pos = (0.5 + (hugY ? ax : ay)) * 100;
+  // At the hub the hexagon and clock sit on the centre, so the face goes
+  // out past them, into the tile: as far as they reach that way on screen.
+  const [sx, sy] = screenToLocal(LOCAL_TO_SCREEN[rot], hugY ? 0 : into, hugY ? into : 0);
+  const hole = !j.atCenter
+    ? 0
+    : sx > 0 ? HUB_REACH.right : sx < 0 ? HUB_REACH.left : sy > 0 ? HUB_REACH.down : HUB_REACH.up;
+  // Along the edge the disc must stay on the tile both ways, and end before
+  // the seat handle in the top-left corner (5px inset, up to 44px, 4px air)
+  // where the edge it hugs runs to that corner.
+  const [along, alongGaps, side] = hugY ? [px, gx, "var(--lw)"] : [py, gy, "var(--lh)"];
+  const handle = into > 0 ? SEAT_HANDLE_REACH : 0;
+  const room = `min(calc(${along / 100} * ${side} + ${alongGaps} * var(--gap) - ${handle}px), calc(${1 - along / 100} * ${side} - ${alongGaps} * var(--gap)))`;
+  const flush = hugY ? (into > 0 ? at(0, gy) : at(0, -gy)) : into > 0 ? at(0, gx) : at(0, -gx);
   const from = hugY ? (into > 0 ? 90 : 270) : into > 0 ? 0 : 180;
+  const pad = `${hole}px`;
   return {
     kind: "half" as const,
     style: {
       ...(hugY
-        ? { left: `clamp(0px, calc(${pos}% + ${need}px), calc(100% - 2 * var(--r)))`, [into > 0 ? "top" : "bottom"]: 0 }
-        : { top: `clamp(0px, calc(${pos}% + ${need}px), calc(100% - 2 * var(--r)))`, [into > 0 ? "left" : "right"]: 0 }),
+        ? { left: `calc(${along}% + ${alongGaps} * var(--gap) - var(--r))`, [into > 0 ? "top" : "bottom"]: flush }
+        : { top: `calc(${along}% + ${alongGaps} * var(--gap) - var(--r))`, [into > 0 ? "left" : "right"]: flush }),
+      "--hole": pad,
+      "--room": room,
       "--cx": hugY ? "50%" : into > 0 ? "0%" : "100%",
       "--cy": hugY ? (into > 0 ? "0%" : "100%") : "50%",
       "--from": `${from}deg`,
       "--sweep": "180deg",
+      // The face is centred in the band between the hole and the rim.
+      "--pt": hugY && into > 0 ? pad : "0.4em",
+      "--pb": hugY && into < 0 ? pad : "0.4em",
+      "--pl": !hugY && into > 0 ? pad : "0.4em",
+      "--pr": !hugY && into < 0 ? pad : "0.4em",
       borderRadius: hugY
         ? into > 0 ? "0 0 999px 999px" : "999px 999px 0 0"
         : into > 0 ? "0 999px 999px 0" : "999px 0 0 999px",

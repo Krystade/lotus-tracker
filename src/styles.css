@@ -494,12 +494,18 @@ input {
     transparent 0
   );
 }
+/* A half disc is centred on the middle of its edge, so the hexagon and clock
+   sit on it: --hole (their reach into the tile, from cornerTimer) is added to
+   the radius and the face sits in the band past it. --room keeps it on the
+   tile sideways. */
 .tile__pill--half {
   --r: min(
-    calc(var(--min-side) * 0.3 * var(--timer-scale, 1)),
-    calc(var(--min-side) * 0.7)
+    calc(var(--min-side) * 0.24 * var(--timer-scale, 1) + var(--hole, 0px)),
+    calc(var(--min-side) * 0.7),
+    var(--room, 100cqw)
   );
   width: calc(var(--r) * 2);
+  font-size: calc((var(--r) - var(--hole, 0px)) * 0.25);
 }
 .tile__pill--side {
   width: var(--r);

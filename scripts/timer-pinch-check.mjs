@@ -68,7 +68,11 @@ const after = await page.locator(".tile__pill").boundingBox();
 check(after.width > before.width * 1.2, `corner timer grows (${before.width.toFixed(0)} -> ${after.width.toFixed(0)}px)`);
 check(!pos?.angle, "corner timer is not turned");
 const tile = await page.locator('.tile[data-pid="p2"]').boundingBox();
-check(after.x >= tile.x - 1 && after.y >= tile.y - 1 && after.x + after.width <= tile.x + tile.width + 1 && after.y + after.height <= tile.y + tile.height + 1, "still inside its tile");
+// The disc is centred where the seats meet, the middle of the gap, so its
+// box reaches half a gap (4px) past the tile, which clips it.
+const slack = 4 + 1;
+check(after.x >= tile.x - slack && after.y >= tile.y - slack && after.x + after.width <= tile.x + tile.width + slack && after.y + after.height <= tile.y + tile.height + slack,
+  `still within half a gap of its tile (${[after.x - tile.x, after.y - tile.y, tile.x + tile.width - after.x - after.width, tile.y + tile.height - after.y - after.height].map((v) => v.toFixed(1)).join(", ")})`);
 await page.screenshot({ path: "screenshots/chromium/extras/timer-pinched.png" });
 await b.close();
 console.log(fails ? `${fails} FAILED` : "all ok");

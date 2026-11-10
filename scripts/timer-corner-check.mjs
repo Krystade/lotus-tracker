@@ -23,20 +23,34 @@ async function open(viewport) {
   return page;
 }
 
-const setup = (page, count, seat, settings) =>
+// A Customize layout: the 3p preset upside down, the big seat on top.
+const CUSTOM = {
+  id: "custom-3top", name: "3 top", builtIn: false, playerCount: 3, rows: 2, cols: 2,
+  placements: [
+    { playerId: "p0", row: 1, col: 1, rowSpan: 1, colSpan: 2, rotation: 180 },
+    { playerId: "p1", row: 2, col: 1, rowSpan: 1, colSpan: 1, rotation: 90 },
+    { playerId: "p2", row: 2, col: 2, rowSpan: 1, colSpan: 1, rotation: 270 },
+  ],
+};
+
+const setup = (page, count, seat, settings, layout) =>
   page.evaluate(
-    ([count, seat, settings]) => {
+    ([count, seat, settings, layout]) => {
       const st = window.__store.getState();
       st.newGame({ playerCount: count, startingLife: 40 });
+      if (layout) st.applyLayout(layout);
       st.updateSettings({ turnTimerEnabled: true, ...settings });
       window.__store.getState().setActivePlayer(`p${seat}`);
     },
-    [count, seat, settings],
+    [count, seat, settings, layout ?? null],
   );
 
 // Screen rects of the pill, its tile, and the centre hexagon + clock.
 const measure = (page) =>
-  page.evaluate(() => {
+  page.evaluate(async () => {
+    const J = await import("/lotus-tracker/src/layout/junction.ts");
+    const st = window.__store.getState();
+    const junction = J.junctionFor(st.game.layout, st.game.turn.activePlayerId);
     const r = (el) => {
       if (!el) return null;
       const b = el.getBoundingClientRect();
@@ -47,6 +61,20 @@ const measure = (page) =>
       pill: r(pill),
       face: pill ? (() => { const rs = [...pill.querySelectorAll(".tile__pill-turn, .tile__pill-time")].map((e) => e.getBoundingClientRect());
         return { x0: Math.min(...rs.map((q) => q.left)), y0: Math.min(...rs.map((q) => q.top)), x1: Math.max(...rs.map((q) => q.right)), y1: Math.max(...rs.map((q) => q.bottom)) }; })() : null,
+      // The disc's centre on screen: a probe at (--cx, --cy) inside the
+      // pill, through the tile's rotation. The hub: the hexagon-and-clock
+      // column is centred on it.
+      centre: pill?.classList.contains("tile__pill--corner") ? (() => {
+        const p = document.createElement("i");
+        p.style.cssText = "position:absolute;left:var(--cx);top:var(--cy);width:0;height:0";
+        pill.appendChild(p);
+        const q = p.getBoundingClientRect();
+        p.remove();
+        return { x: q.left, y: q.top };
+      })() : null,
+      hub: (() => { const c = document.querySelector(".center").getBoundingClientRect(); return { x: (c.left + c.right) / 2, y: (c.top + c.bottom) / 2 }; })(),
+      gap: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gap")),
+      junction,
       corner: pill?.classList.contains("tile__pill--quarter") ? "quarter" : pill?.classList.contains("tile__pill--half") ? "half" : null,
       tile: r(pill?.closest(".tile")),
       hex: r(document.querySelector(".center__hex")),
@@ -79,25 +107,44 @@ await mini.waitForTimeout(100);
   check(m.adj.some((a) => overlap(m.pill, a)), "control: a pill dragged onto + is seen covering it");
 }
 
-for (const count of [2, 3, 4, 5, 6]) {
-  for (let seat = 0; seat < count; seat++) {
-    await setup(mini, count, seat, { turnTimerPlacement: "corner", turnTimerScale: 1 });
+const grow = (t, d) => ({ x0: t.x0 - d, y0: t.y0 - d, x1: t.x1 + d, y1: t.y1 + d });
+const onBorder = (t, p, d) => inside({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }, grow(t, d)) &&
+  [p.x - t.x0, t.x1 - p.x, p.y - t.y0, t.y1 - p.y].some((v) => Math.abs(v) <= d);
+for (const count of [2, 3, 4, 5, 6, "custom"]) {
+  const n = count === "custom" ? CUSTOM.playerCount : count;
+  for (let seat = 0; seat < n; seat++) {
+    await setup(mini, n, seat, { turnTimerPlacement: "corner", turnTimerScale: 1 }, count === "custom" ? CUSTOM : null);
     await mini.waitForTimeout(80);
     const m = await measure(mini);
-    const tag = `${count}p seat ${seat}`;
+    const tag = count === "custom" ? `custom seat ${seat}` : `${count}p seat ${seat}`;
     check(!!m.pill, `${tag}: pill shown`);
     if (!m.pill) continue;
-    check(inside(m.pill, m.tile), `${tag}: pill inside its own tile`);
-    // The corner timer IS the corner now: flush against the tile's edges,
-    // with its face (turn + time) clear of the hexagon and clock.
-    const flush = ["x0", "y0", "x1", "y1"].filter((k) => Math.abs(m.pill[k] - m.tile[k]) < 1.5).length;
-    check(flush >= (m.corner === "quarter" ? 2 : 1), `${tag}: ${m.corner} flush against ${flush} tile edges`);
+    // The disc is centred on the point where the seats meet -- the middle
+    // of the gap -- so its box reaches half a gap past the tile's edge;
+    // the tile clips that. Where the tile touches the hub, that point IS
+    // the hub, under the hexagon.
+    const half = m.gap / 2;
+    check(inside(m.pill, grow(m.tile, half)), `${tag}: pill within half a gap of its own tile`);
+    check(!!m.centre && onBorder(m.tile, m.centre, half + 0.5), `${tag}: ${m.corner} centred on the tile's border (${m.centre?.x.toFixed(1)}, ${m.centre?.y.toFixed(1)})`);
+    // Exactly on the intersection (junctionFor's point, in the gap's
+    // middle) -- and where that is the hub, exactly on the hub.
+    const j = m.junction;
+    const want = { x: m.tile.x0 + j.fx * (m.tile.x1 - m.tile.x0) + j.gx * m.gap, y: m.tile.y0 + j.fy * (m.tile.y1 - m.tile.y0) + j.gy * m.gap };
+    const offJ = Math.hypot(m.centre.x - want.x, m.centre.y - want.y);
+    check(offJ <= 1, `${tag}: ${m.corner} centre on the intersection (${offJ.toFixed(2)}px off)`);
+    const touchesHub = inside({ x0: m.hub.x, y0: m.hub.y, x1: m.hub.x, y1: m.hub.y }, grow(m.tile, half + 0.5));
+    if (j.atCenter) {
+      const off = Math.hypot(m.centre.x - m.hub.x, m.centre.y - m.hub.y);
+      check(off <= 1, `${tag}: ${m.corner} centre on the hub (${off.toFixed(2)}px off)`);
+    } else if (touchesHub) console.log(`     ${tag}: touches the hub mid-edge but its seats meet at a ${j.touching}-way corner; the quarter stays there`);
+    check(inside(m.face, m.tile), `${tag}: face inside its tile`);
     check(!overlap(m.face, m.hex) && !overlap(m.face, m.clock), `${tag}: face clear of hex and clock`);
+    check(m.font >= 12, `${tag}: face font ${m.font.toFixed(1)}px`);
     // Near the middle of the board: within a third of the board's short side.
     const cx = 375 / 2, cy = 812 / 2;
-    if (count <= 4) check(dist(m.pill, cx, cy) < 70, `${tag}: hugs the middle (${dist(m.pill, cx, cy).toFixed(0)}px away)`);
+    if (n <= 4) check(dist(m.pill, cx, cy) < 70, `${tag}: hugs the middle (${dist(m.pill, cx, cy).toFixed(0)}px away)`);
     if (seat === 0 || (count === 3 && seat === 2) || (count === 2 && seat === 1))
-      await mini.screenshot({ path: `${OUT}/corner-${count}p-seat${seat}.png` });
+      await mini.screenshot({ path: `${OUT}/corner-${count === "custom" ? "custom" : count + "p"}-seat${seat}.png` });
   }
 }
 

@@ -191,6 +191,44 @@ describe("junctionFor at the hub", () => {
     }
   });
 
+  it("gx / gy land the point on the gap's middle as rendered, and on the hub when atCenter", () => {
+    const one = (playerId: string, row: number, col: number, rowSpan = 1, colSpan = 1) =>
+      ({ playerId, row, col, rowSpan, colSpan, rotation: 0 as const });
+    // A seat across three columns meets the others a third of the way along,
+    // off a plain fraction of its width by a sixth of a gap.
+    const wide3: Pick<LayoutConfig, "rows" | "cols" | "placements"> = {
+      rows: 2, cols: 3,
+      placements: [one("p0", 1, 1, 1, 3), one("p1", 2, 1), one("p2", 2, 2), one("p3", 2, 3)],
+    };
+    expect(junctionFor(wide3, "p0")).toMatchObject({ fx: 1 / 3, fy: 1, touching: 3 });
+    expect(junctionFor(wide3, "p0")!.gx).toBeCloseTo(-1 / 6, 9);
+    const line = (u: number, n: number, size: number) => {
+      const track = (size - (n - 1) * GAP) / n;
+      if (u === 0 || u === n) return u === 0 ? 0 : size;
+      return Number.isInteger(u) ? u * (track + GAP) - GAP / 2 : Math.floor(u) * (track + GAP) + track / 2;
+    };
+    let hubs = 0;
+    for (const l of [...allBuiltInPresets(), wide3]) {
+      const rects = pxRects(l, W, H, GAP);
+      const h = boardHub(l);
+      for (const p of l.placements) {
+        const j = junctionFor(l, p.playerId)!;
+        const r = rects[p.playerId];
+        const px = r.x + j.fx * r.w + j.gx * GAP;
+        const py = r.y + j.fy * r.h + j.gy * GAP;
+        const label = `${l.rows}x${l.cols} ${p.playerId}`;
+        expect(px, label).toBeCloseTo(line(p.col - 1 + j.fx * p.colSpan, l.cols, W), 6);
+        expect(py, label).toBeCloseTo(line(p.row - 1 + j.fy * p.rowSpan, l.rows, H), 6);
+        if (j.atCenter) {
+          hubs++;
+          expect(px, label).toBeCloseTo(h.x * W + GAP * gapShift(h.x), 6);
+          expect(py, label).toBeCloseTo(h.y * H + GAP * gapShift(h.y), 6);
+        }
+      }
+    }
+    expect(hubs).toBeGreaterThanOrEqual(9);
+  });
+
   it("three down one side: the two seats sharing the hub get the hexagon's clearance", () => {
     expect(junctionFor(bench, "p0")).toMatchObject({ fx: 0.5, fy: 1, touching: 2, atCenter: true });
     expect(junctionFor(bench, "p1")).toMatchObject({ fx: 0.5, fy: 0, touching: 2, atCenter: true });

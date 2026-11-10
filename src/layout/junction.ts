@@ -17,6 +17,26 @@ export interface TileJunction {
   touching: number;
   /** The point is the board's hub (see boardHub), where the menu hexagon sits. */
   atCenter: boolean;
+  /**
+   * Grid gaps to add to fx/fy times the tile's size to land on the point as
+   * rendered: a grid line is the middle of its gap, so on the tile's own edge
+   * the point is half a gap outside it, and a point across a spanned tile
+   * sits off a plain fraction by the gaps it crosses (see gapShift). 0 on the
+   * board's outer edge, which has no gap.
+   */
+  gx: number;
+  gy: number;
+}
+
+/** gx / gy for a point u cells along a tile w cells wide, at a board line or not. */
+function tileGap(u: number, w: number, boardEdge: boolean): number {
+  if (boardEdge) return 0;
+  if (u === 0) return -0.5;
+  if (u === w) return 0.5;
+  // u cells and the gaps between them, less the plain fraction's share of
+  // the tile's w - 1 gaps; a whole u is a grid line, the middle of a gap.
+  const crossed = Number.isInteger(u) ? u - 0.5 : Math.floor(u);
+  return crossed - (u * (w - 1)) / w;
 }
 
 interface Rect {
@@ -130,5 +150,7 @@ export function junctionFor(layout: Grid & Pick<LayoutConfig, "cells">, playerId
     sy: dir(best.y, me.y0, me.y1),
     touching: best.n,
     atCenter: best.x === cx && best.y === cy,
+    gx: tileGap(best.x - me.x0, w, best.x === 0 || best.x === layout.cols),
+    gy: tileGap(best.y - me.y0, h, best.y === 0 || best.y === layout.rows),
   };
 }
