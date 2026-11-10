@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { tileSpot } from "./stickers";
 
-import { farTopCorner, giveSticker, localSpot, remapStickers, seatHandleSpot } from "./stickers";
+import { farTopCorner, giveSticker, localSpot, placeSticker, remapStickers, seatAt, seatHandleSpot, startSpot } from "./stickers";
+import { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats } from "../layout/freeform";
 import { defaultLayoutFor as presetFor } from "../layout/presets";
 import { HUB_REACH } from "../layout/junction";
 describe("remapStickers", () => {
@@ -123,5 +124,26 @@ describe("seatHandleSpot", () => {
       }
     }
     expect(seatHandleSpot(sixHub, "p3").push).toBeUndefined();
+  });
+});
+
+describe("freeform stickers", () => {
+  const x = buildFreeLayout(templateSeats(BUILTIN_TEMPLATES.find((t) => t.id === "x")!));
+  it("seatAt asks the cells, not the grid stand-ins", () => {
+    // The X's top cell runs down to the middle; its stand-in only covers its face up top.
+    expect(seatAt(x, 0.5, 0.4)?.playerId).toBe("p0");
+    expect(seatAt({ ...x, cells: undefined }, 0.5, 0.4)).toBeNull();
+    expect(seatAt(x, 0.9, 0.5)?.playerId).toBe("p1");
+    expect(seatAt(x, 0.5, 0.95)?.playerId).toBe("p2");
+    expect(seatAt(x, 0.05, 0.5)?.playerId).toBe("p3");
+  });
+  it("a dropped sticker goes to the cell it lands in", () => {
+    const [s] = placeSticker(giveSticker([], x, "monarch", "p1"), x, "monarch", { x: 0.5, y: 0.4, scale: 1 });
+    expect(s.holder).toBe("p0");
+  });
+  it("giveSticker takes a measured start spot, else startSpot", () => {
+    expect(giveSticker([], x, "ring", "p2", { x: 0.4, y: 0.7 })[0]).toMatchObject({ x: 0.4, y: 0.7, holder: "p2" });
+    const [t] = giveSticker([], x, "ring", "p2", null);
+    expect({ x: t.x, y: t.y }).toEqual(startSpot(x, "p2"));
   });
 });

@@ -4,6 +4,7 @@ import { formatGameClock } from "../util/format";
 import { STICKERS } from "../game/stickers";
 import { boardHub, gapShift } from "../layout/junction";
 import { useLayoutEdit } from "./layoutEdit";
+import { freeStickerSpot } from "./stickerSpot";
 
 interface Props {
   onNewGame: () => void;
@@ -108,7 +109,12 @@ export function CenterMenu({
                         key={st.id}
                         className="sheet__row"
                         onClick={act(() =>
-                          giveSticker(st.id, held ? null : activeId),
+                          giveSticker(
+                            st.id,
+                            held ? null : activeId,
+                            // A freeform seat: a spot inside its actual cell.
+                            held || !activeId ? null : freeStickerSpot(useStore.getState().game.layout, activeId),
+                          ),
                         )}
                       >
                         {st.icon}{" "}

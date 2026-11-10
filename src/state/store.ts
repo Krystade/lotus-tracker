@@ -226,8 +226,8 @@ export interface StoreState {
   setPlayerName: (playerId: string, name: string) => void;
   setPlayerLook: (playerId: string, look: string) => void;
   setFirstPlayer: (playerId: string) => void;
-  /** Hand a sticker to a seat, or take it off the table with null. */
-  giveSticker: (id: StickerId, holder: string | null) => void;
+  /** Hand a sticker to a seat, or take it off the table with null. `at`: a measured start spot, board fractions. */
+  giveSticker: (id: StickerId, holder: string | null, at?: { x: number; y: number } | null) => void;
   /** Stop showing a counter on the tile (it shows again once used). */
   unpinCounter: (playerId: string, key: string) => void;
   /** Move / resize a sticker on the board (fractions of the board). */
@@ -627,11 +627,11 @@ export const useStore = create<StoreState>()(
           },
         })),
 
-      giveSticker: (id, holder) =>
+      giveSticker: (id, holder, at) =>
         set((s) => ({
           game: {
             ...s.game,
-            stickers: giveSticker(s.game.stickers, s.game.layout, id, holder),
+            stickers: giveSticker(s.game.stickers, s.game.layout, id, holder, at),
           },
         })),
 

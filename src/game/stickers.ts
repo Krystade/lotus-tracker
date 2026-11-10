@@ -23,10 +23,30 @@ const IDS = new Set<string>(STICKERS.map((s) => s.id));
 export const MIN_SCALE = 0.6;
 export const MAX_SCALE = 4;
 
-type Grid = Pick<LayoutConfig, "rows" | "cols" | "placements">;
+type Grid = Pick<LayoutConfig, "rows" | "cols" | "placements"> & Partial<Pick<LayoutConfig, "cells">>;
 
-/** The seat whose tile covers this point of the board, if any. */
+/** Is (x, y) inside the polygon? Even-odd rule. */
+function inPoly(poly: [number, number][], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * The seat whose tile covers this point of the board, if any. A freeform
+ * layout asks its cells, not the grid stand-ins: a stand-in only covers its
+ * cell's face, so a sticker on the rest of the cell would face the wrong
+ * way and, dropped there, stay with whoever held it.
+ */
 export function seatAt(layout: Grid, fx: number, fy: number): Placement | null {
+  if (layout.cells?.length) {
+    const c = layout.cells.find((q) => inPoly(q.poly, fx, fy));
+    return (c && layout.placements.find((p) => p.playerId === c.playerId)) ?? null;
+  }
   const col = fx * layout.cols;
   const row = fy * layout.rows;
   return (
@@ -50,16 +70,22 @@ export function tileCentre(layout: Grid, playerId: string): { x: number; y: numb
   };
 }
 
-/** Put a sticker on the table at the centre of a seat, or take it off with null. */
+/**
+ * Put a sticker on the table on a seat, or take it off with null. `at` (board
+ * fractions) is a start spot measured on the rendered board -- a freeform
+ * cell's (see freeStickerSpot); otherwise startSpot's.
+ */
 export function giveSticker(
   stickers: StickerHold[],
   layout: Grid,
   id: StickerId,
   holder: string | null,
+  at?: { x: number; y: number } | null,
 ): StickerHold[] {
   const rest = stickers.filter((s) => s.id !== id);
   if (!holder) return rest;
-  return [...rest, { id, holder, ...startSpot(layout, holder), scale: 1 }];
+  const spot = at && Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: clamp(at.x, 0, 1), y: clamp(at.y, 0, 1) } : startSpot(layout, holder);
+  return [...rest, { id, holder, ...spot, scale: 1 }];
 }
 
 /**
@@ -68,7 +94,7 @@ export function giveSticker(
  * centre-corner turn timer lives, and a sticker over it would eat the tap
  * that passes the turn.
  */
-function startSpot(layout: Grid, holder: string): { x: number; y: number } {
+export function startSpot(layout: Grid, holder: string): { x: number; y: number } {
   // Inset from the corner so the seat handle there stays uncovered; where
   // the handle slid along the edge past the hub, it sits right above that
   // spot, so start lower.

@@ -206,6 +206,124 @@ const hits = await page.evaluate(() =>
 );
 check(hits.length === 8 && hits.every(Boolean), `all 8 life zones hit-testable (${hits.filter(Boolean).length}/8)`);
 
+// ---- stickers and the timer sit in the actual cell ----
+// A cell's outline is its tile's clip-path, in screen px. A new sticker
+// (added from the menu to whoever's turn it is) must lie wholly inside its
+// holder's polygon, clear of that tile's number, signs, ⋯ and timer, of the
+// hexagon and clock, and of the other stickers, facing its holder's way. The
+// timer (drag and corner mode) must lie inside the active cell too.
+const sheetRect = (sel) => page.evaluate((sel) => {
+  const out = {};
+  for (const t of document.querySelectorAll(".tile--poly")) {
+    const r = t.getBoundingClientRect();
+    const m = /polygon\((.*)\)/.exec(t.style.clipPath);
+    out[t.dataset.pid] = m ? m[1].split(",").map((p) => { const [x, y] = p.trim().split(/\s+/).map(parseFloat); return [r.left + x, r.top + y]; }) : [];
+  }
+  return out;
+}, sel);
+const inPoly = (poly, x, y) => {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const boxIn = (poly, b) => [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].every(([x, y]) => inPoly(poly, x, y));
+// What a sticker of `id` overlaps, and where it is.
+const stickerProblems = async (id) => {
+  const polys = await sheetRect();
+  const r = await page.evaluate((id) => {
+    const box = (el) => { const q = el.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height }; };
+    const text = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); return box(rg); };
+    const g = window.__store.getState().game;
+    const st = g.stickers.find((s) => s.id === id);
+    const el = document.querySelector(`.sticker[data-sticker="${id}"]`);
+    const tile = document.querySelector(`.tile[data-pid="${st.holder}"]`);
+    const cell = g.layout.cells.find((c) => c.playerId === st.holder);
+    const rot = Number(/rotate\((\d+)deg\)/.exec(el.style.transform)?.[1] ?? 0);
+    const blocks = [
+      ["number", text(tile.querySelector(".tile__life"))],
+      ...[...tile.querySelectorAll(".tile__sign")].map((s) => [s.textContent, text(s)]),
+      ["⋯", box(tile.querySelector(".tile__more"))],
+      ...[...tile.querySelectorAll(".tile__pill")].map((p) => ["timer", box(p)]),
+      ...[".center__hex", ".center__clock"].map((q) => document.querySelector(q)).filter(Boolean).map((e) => [e.className, box(e)]),
+      ...[...document.querySelectorAll(".sticker")].filter((s) => s !== el).map((s) => [s.dataset.sticker, box(s)]),
+    ];
+    return { holder: st.holder, me: box(el), rot, cellRot: cell.rotation, blocks };
+  }, id);
+  const bad = [];
+  if (!boxIn(polys[r.holder], r.me)) bad.push(`outside ${r.holder}'s cell`);
+  if (r.rot !== r.cellRot) bad.push(`faces ${r.rot}, cell ${r.cellRot}`);
+  for (const [name, b] of r.blocks) if (ov(r.me, b)) bad.push(`on ${name}`);
+  return { holder: r.holder, bad };
+};
+const STICKER_NAMES = { monarch: "Monarch", initiative: "Initiative", blessing: "City's Blessing", ring: "The Ring" };
+async function addStickerFromMenu(id) {
+  await page.locator(".center__hex").tap();
+  await page.getByRole("button", { name: "👑 Stickers…" }).tap();
+  await page.getByRole("button", { name: `Add ${STICKER_NAMES[id]}` }).tap();
+  await settle();
+}
+async function stickerCheck(label) {
+  const ids = Object.keys(STICKER_NAMES);
+  await page.evaluate((ids) => { const st = window.__store.getState(); ids.forEach((id) => st.giveSticker(id, null)); }, ids);
+  const seats = (await state()).game.players.map((p) => p.id);
+  for (const mode of ["drag", "corner"]) {
+    await page.evaluate((mode) => window.__store.getState().updateSettings({ turnTimerEnabled: true, turnTimerPlacement: mode }), mode);
+    for (const id of seats) {
+      await page.evaluate((id) => window.__store.getState().setActivePlayer(id), id);
+      await settle();
+      const polys = await sheetRect();
+      const pill = await page.evaluate(() => { const q = document.querySelector(".tile__pill")?.getBoundingClientRect(); return q && { x: q.left, y: q.top, w: q.width, h: q.height }; });
+      check(!!pill && boxIn(polys[id], pill), `${label} ${mode}: ${id}'s timer inside its cell`);
+    }
+  }
+  for (let i = 0; i < Math.min(ids.length, seats.length); i++) {
+    await page.evaluate((id) => window.__store.getState().setActivePlayer(id), seats[i]);
+    await settle();
+    await addStickerFromMenu(ids[i]);
+    const r = await stickerProblems(ids[i]);
+    check(r.holder === seats[i] && r.bad.length === 0, `${label} ${ids[i]} added for ${seats[i]}: held by ${r.holder}, ${r.bad.join(", ") || "inside its cell, clear"}`);
+  }
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/${label}-stickers.png` });
+  // All four, once every one is on the board: still clear of each other.
+  const all = [];
+  for (const id of ids.slice(0, seats.length)) all.push(...(await stickerProblems(id)).bad.filter((b) => ids.some((q) => b === `on ${q}`)));
+  check(all.length === 0, `${label} stickers clear of each other${all.length ? ": " + all.join(", ") : ""}`);
+}
+await stickerCheck("03x");
+// Control: the store's own start spot (the cell's grid stand-in, what every
+// sticker used before) lands one on its seat's number or outside its cell.
+{
+  const ids = Object.keys(STICKER_NAMES);
+  await page.evaluate((ids) => { const st = window.__store.getState(); ids.forEach((id) => st.giveSticker(id, null)); ids.forEach((id, i) => st.giveSticker(id, `p${i}`)); }, ids);
+  await settle();
+  const caught = [];
+  for (const id of ids) { const r = await stickerProblems(id); if (r.bad.length) caught.push(`${id}: ${r.bad.join("/")}`); }
+  check(caught.length > 0, `03x control: stand-in start spots are caught (${caught.join("; ") || "none"})`);
+}
+// Dragged onto the part of a cell its stand-in misses (the X's top cell runs
+// down to the hub, its face is up top), a sticker changes hands and faces
+// its new holder. Old seatAt: no tile there, so it stayed put with p1.
+{
+  const r = await page.evaluate(() => {
+    const st = window.__store.getState();
+    st.giveSticker("monarch", "p1");
+    st.placeSticker("monarch", { x: 0.5, y: 0.4, scale: 1 });
+    const g = window.__store.getState().game;
+    const p0 = g.layout.placements.find((p) => p.playerId === "p0");
+    const inStandIn = 0.5 * g.layout.cols >= p0.col - 1 && 0.5 * g.layout.cols < p0.col - 1 + p0.colSpan && 0.4 * g.layout.rows >= p0.row - 1 && 0.4 * g.layout.rows < p0.row - 1 + p0.rowSpan;
+    return { holder: g.stickers.find((s) => s.id === "monarch").holder, inStandIn };
+  });
+  await settle();
+  const rot = await page.evaluate(() => Number(/rotate\((\d+)deg\)/.exec(document.querySelector('.sticker[data-sticker="monarch"]').style.transform)?.[1] ?? 0));
+  const want = (await state()).game.layout.cells.find((c) => c.playerId === "p0").rotation;
+  check(!r.inStandIn && r.holder === "p0" && rot === want, `03x sticker dropped by the hub in p0's cell (outside its stand-in: ${!r.inStandIn}) is p0's (${r.holder}) and faces ${rot} (cell ${want})`);
+  await page.evaluate(() => { const st = window.__store.getState(); for (const id of ["monarch", "initiative", "blessing", "ring"]) st.giveSticker(id, null); });
+}
+
 // ---- turn order: clockwise top → right → bottom → left ----
 await page.evaluate(() => {
   const st = window.__store.getState();
@@ -253,6 +371,7 @@ for (const p of s.game.players) {
   const up = (await state()).game.players.find((q) => q.id === p.id).life;
   check(up === before + 1, `5p ${p.name}: + gives ${before}→${up}`);
 }
+await stickerCheck("05five");
 
 // ---- undo + cancel leave the board alone ----
 await openEditor();
