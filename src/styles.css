@@ -146,6 +146,13 @@ input {
   pointer-events: none;
 }
 
+/* A big corner disc can slide a glyph up against the number; the zone stops
+   at the number's ink and this box (the glyph's own ink and a hair, set by
+   PlayerTile signShifts) takes the glyph's taps. */
+.tile__sign-hit {
+  position: absolute;
+}
+
 /* Eliminated tiles are out — drop their controls so live tiles pop. */
 .tile--out .tile__adj,
 .tile--out .tcount-row {

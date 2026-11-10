@@ -339,13 +339,25 @@ function gridPill(rotation: Rotation, content: HTMLElement): { x: number; y: num
 const SIGN_DISC_GAP = 6;
 // A slid glyph's tap zone reaches this far past its ink, toward the number.
 const SIGN_ZONE_PAD = 14;
+// ...but stops at the number's ink. Where the slid glyph itself reaches the
+// number, a hit box of its own ink and this much round it takes its taps.
+const SIGN_OWN_PAD = 4;
 // The + / − zones' CSS width (styles.css .tile__adj), as a share of the tile.
 const ADJ_ZONE = 0.32;
 
-/** Per glyph [minus, plus]: how far it slides (px) and how wide its zone must grow to (px, 0 = as styled). */
+/** A slid glyph's own hit box, px in its button's frame: from the button's outer edge (left for −, right for +) and top. */
+interface SignHit {
+  edge: number;
+  top: number;
+  w: number;
+  h: number;
+}
+
+/** Per glyph [minus, plus]: how far it slides (px), how wide its zone must be (px, 0 = as styled), its own hit box. */
 interface SignShift {
   shift: [number, number];
   zone: [number, number];
+  hit: [SignHit | null, SignHit | null];
 }
 
 /**
@@ -354,9 +366,13 @@ interface SignShift {
  * covered glyph along the tile (its own x) away from the disc -- toward the
  * number -- until its ink clears the rim. The glyph's tap zone keeps its
  * outer edge but grows toward the number to take the slid glyph in (a big
- * disc slides it right out of the usual 32%); the disc is drawn over the
- * zone, so a tap on the disc still passes the turn. Everything is in the
- * content box's own frame: offsetLeft/Top ignore transforms, so neither the
+ * disc slides it right out of the usual 32%) -- but never onto the number's
+ * ink. Where a big disc slides the glyph up against (or onto) the number, a
+ * hit box of the glyph's own ink plus SIGN_OWN_PAD takes its taps instead,
+ * so the glyph has priority over that much of the number and no more. The
+ * disc is drawn over the zone, so a tap on the disc still passes the turn.
+ * Everything is in the content box's own frame: offsetLeft/Top ignore
+ * transforms, so neither the
  * button's translateY(-50%) nor a shift already applied feeds back into the
  * measurement, and the zone's width is reckoned from the tile, not from the
  * already-grown button. null when nothing is covered.
@@ -377,6 +393,22 @@ function signShifts(content: HTMLElement): SignShift | null {
   if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
   const out: [number, number] = [0, 0];
   const zone: [number, number] = [0, 0];
+  const hit: [SignHit | null, SignHit | null] = [null, null];
+  // The number's ink along x, from layout sizes (not the screen box, which a
+  // damage / heal kick scales): the text is centred across the life box; a 6
+  // or 9 adds 0.03em margins each side (styles.css .digit--ambiguous).
+  let nx0 = Infinity;
+  let nx1 = -Infinity;
+  const lifeEl = content.querySelector<HTMLElement>(".tile__life");
+  if (lifeEl && measureCtx && lifeEl.textContent) {
+    const ls = getComputedStyle(lifeEl);
+    measureCtx.font = `${ls.fontWeight} ${ls.fontSize} ${ls.fontFamily}`;
+    const lm = measureCtx.measureText(lifeEl.textContent);
+    const w = lm.width + 0.06 * (parseFloat(ls.fontSize) || 0) * lifeEl.querySelectorAll(".digit--ambiguous").length;
+    const tx = lifeEl.offsetLeft + (lifeEl.offsetWidth - w) / 2;
+    nx0 = tx - lm.actualBoundingBoxLeft;
+    nx1 = tx + w - (lm.width - lm.actualBoundingBoxRight);
+  }
   content.querySelectorAll<HTMLElement>(".tile__adj").forEach((btn) => {
     const g = btn.querySelector<HTMLElement>(".tile__sign");
     const i = btn.classList.contains("tile__adj--plus") ? 1 : 0;
@@ -408,17 +440,33 @@ function signShifts(content: HTMLElement): SignShift | null {
     const fitsR = x1 + toRight <= sw;
     out[i] = fitsL && (!fitsR || -toLeft <= toRight) ? toLeft : fitsR ? toRight : 0;
     const s = Math.round(out[i]);
+    if (!s) return;
     // − hugs the left edge, + the right; the zone must reach the slid ink's
-    // inner side plus a fingertip, and never past the other zone's usual edge.
-    const reach = i === 0 ? x1 + s + SIGN_ZONE_PAD : sw - (x0 + s) + SIGN_ZONE_PAD;
-    if (s && reach > ADJ_ZONE * sw) zone[i] = Math.round(Math.min(reach, (1 - ADJ_ZONE) * sw));
+    // inner side plus a fingertip, but never past the other zone's usual
+    // edge or onto the number's ink.
+    const inner = i === 0 ? x1 + s : sw - (x0 + s);
+    const toNumber = i === 0 ? nx0 : sw - nx1;
+    const w = Math.min(Math.max(inner + SIGN_ZONE_PAD, ADJ_ZONE * sw), (1 - ADJ_ZONE) * sw, toNumber);
+    if (Math.abs(w - ADJ_ZONE * sw) >= 0.5) zone[i] = Math.floor(w);
+    // The glyph (plus a hair) reaches the number, or past the zone: its own box.
+    if (inner + SIGN_OWN_PAD > w)
+      hit[i] = {
+        edge: Math.round((i === 0 ? x0 + s : sw - (x1 + s)) - SIGN_OWN_PAD),
+        top: Math.round(y0 - SIGN_OWN_PAD - (btn.offsetTop - btn.offsetHeight / 2)),
+        w: Math.round(x1 - x0 + 2 * SIGN_OWN_PAD),
+        h: Math.round(y1 - y0 + 2 * SIGN_OWN_PAD),
+      };
   });
-  return out[0] || out[1] ? { shift: [Math.round(out[0]), Math.round(out[1])], zone } : null;
+  return out[0] || out[1] ? { shift: [Math.round(out[0]), Math.round(out[1])], zone, hit } : null;
 }
 
-const sameShift = (a: SignShift | null, b: SignShift | null) =>
-  a === b ||
-  (!!a && !!b && a.shift[0] === b.shift[0] && a.shift[1] === b.shift[1] && a.zone[0] === b.zone[0] && a.zone[1] === b.zone[1]);
+const sameShift = (a: SignShift | null, b: SignShift | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
+
+/** A slid glyph's own hit box (see signShifts), inside its button. */
+function SignHitBox({ hit, side }: { hit: SignHit | null | undefined; side: "left" | "right" }) {
+  if (!hit) return null;
+  return <span className="tile__sign-hit" style={{ [side]: hit.edge, top: hit.top, width: hit.w, height: hit.h }} />;
+}
 
 export function PlayerTile({
   placement,
@@ -674,6 +722,7 @@ export function PlayerTile({
           {...minus}
         >
           <span className="tile__sign" style={signShift?.shift[0] ? { translate: `${signShift.shift[0]}px 0` } : undefined}>–</span>
+          <SignHitBox hit={signShift?.hit[0]} side="left" />
         </button>
         <button
           className="tile__adj tile__adj--plus"
@@ -682,6 +731,7 @@ export function PlayerTile({
           {...plus}
         >
           <span className="tile__sign" style={signShift?.shift[1] ? { translate: `${signShift.shift[1]}px 0` } : undefined}>+</span>
+          <SignHitBox hit={signShift?.hit[1]} side="right" />
         </button>
 
         <div
