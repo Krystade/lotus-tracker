@@ -24,7 +24,7 @@ import { seatHandleSpot, type SeatHandleSpot } from "../game/stickers";
 import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
 import { warnLevel } from "../game/turn";
-import type { Placement, Rotation, TilePos } from "../state/types";
+import type { Placement, Rotation, StickerHold, TilePos } from "../state/types";
 import type { PolyGeom } from "../layout/freeform";
 
 interface Props {
@@ -162,6 +162,8 @@ function cornerTimer(j: TileJunction, rot: Rotation) {
   };
 }
 
+const NO_STICKERS: StickerHold[] = [];
+
 let measureCtx: CanvasRenderingContext2D | null | undefined;
 function textWidth(text: string, el: Element): number {
   if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
@@ -183,10 +185,24 @@ const sameSpot = (a: { x: number; y: number } | null, b: { x: number; y: number 
  * A narrow freeform cell's face has no free corner, so ⋯ would sit on a + / −
  * sign and the timer against the life number. The cell has room outside its
  * face: move each to the nearest clear spot inside the polygon, clear of the
- * number, the signs and the menu hexagon (the timer also of ⋯ and the counter
- * row). Measured in the face's own frame from the rendered sizes.
+ * number, the signs and the menu hexagon (the timer also of ⋯, the counter
+ * row and the stickers -- as stored, so a sticker mid-drag does not chase it;
+ * if no spot clears the stickers too, it lets them be). Measured in the
+ * face's own frame from the rendered sizes.
+ *
+ * Stickers settle first and the timer follows: a sticker is placed (added,
+ * or re-placed after a layout change) once, against the timer where it is
+ * then; the timer is placed every render, clear of the stickers. Nothing
+ * moves a sticker because the timer moved, so the two never chase each other.
  */
-function polySpots(cell: PolyGeom, rotation: Rotation, content: HTMLElement, life: string, autoPill: boolean): PolySpots {
+function polySpots(
+  cell: PolyGeom,
+  rotation: Rotation,
+  content: HTMLElement,
+  life: string,
+  autoPill: boolean,
+  stickers: StickerHold[],
+): PolySpots {
   const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
   const poly = cell.poly.map(toLocal);
   const blocks: Box[] = [];
@@ -208,7 +224,7 @@ function polySpots(cell: PolyGeom, rotation: Rotation, content: HTMLElement, lif
   // spans), mapped back from the screen into the face's frame.
   const cr = content.getBoundingClientRect();
   const scr = faceFrame({ x: cr.left, y: cr.top, w: cr.width, h: cr.height }, rotation).toLocal;
-  const local = (r: DOMRect, pad = 0): Box => {
+  const local = (r: Pick<DOMRect, "left" | "top" | "right" | "bottom">, pad = 0): Box => {
     const b = boxOf([scr({ x: r.left, y: r.top }), scr({ x: r.right, y: r.bottom })]);
     return { x: b.x - pad, y: b.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad };
   };
@@ -258,7 +274,18 @@ function polySpots(cell: PolyGeom, rotation: Rotation, content: HTMLElement, lif
     const pb = [...blocks];
     if (moreBox) pb.push(moreBox);
     if (rowH > 1) pb.push({ x: 0, y: lh, w: sw, h: rowH });
-    const spot = clearSpot(poly, pb, w, h, { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh });
+    // The stickers, from the store (board fractions; styles.css .sticker is 52px at scale 1).
+    const bd = content.closest(".board")?.getBoundingClientRect();
+    const sb = bd
+      ? stickers.map((t) => {
+          const d = 52 * t.scale;
+          const x = bd.left + t.x * bd.width;
+          const y = bd.top + t.y * bd.height;
+          return local({ left: x - d / 2, top: y - d / 2, right: x + d / 2, bottom: y + d / 2 });
+        })
+      : [];
+    const prefer = { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh };
+    const spot = (sb.length ? clearSpot(poly, [...pb, ...sb], w, h, prefer) : null) ?? clearSpot(poly, pb, w, h, prefer);
     if (spot?.moved) pill = { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 };
   }
   return { more, pill };
@@ -493,6 +520,8 @@ export function PlayerTile({
   const timerPlacement = useStore((s) => s.settings.turnTimerPlacement);
   const warnOn = useStore((s) => s.settings.turnWarnOn);
   const layout = useStore((s) => s.game.layout);
+  // A freeform cell's auto-placed timer keeps clear of the stickers.
+  const stickers = useStore((s) => (cell ? s.game.stickers : NO_STICKERS));
   // Share of the turn budget still on the clock, for the countdown ring.
   const turnFraction =
     turn.budgetSec > 0
@@ -573,7 +602,7 @@ export function PlayerTile({
     const content = contentRef.current;
     const next =
       !content || !player ? null
-      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill)
+      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill, stickers)
       : { more: null, pill: autoPill ? gridPill(placement.rotation, content) : null };
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
     const shift = content && !cell && pinnedToCorner ? signShifts(content) : null;

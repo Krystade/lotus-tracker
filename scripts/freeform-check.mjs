@@ -569,6 +569,98 @@ async function refitCase(label, change) {
   const c = after[ctl.id];
   check(c.x === ctl.x && c.y === ctl.y && c.bad.includes("on number"), `refit control: ${ctl.id} dragged onto its number with no layout change stays (${c.x === ctl.x && c.y === ctl.y}) and is caught (${c.bad.join("/") || "nothing"})`);
 }
+// ---- the auto-placed timer keeps clear of stickers ----
+// On the X, each seat active in turn, drag and corner mode: a sticker is
+// dropped on the timer's centre (no layout change, so it stays where it is
+// put). The timer must move off it, still inside its cell and clear of the
+// number, signs, ⋯ and hub, while the sticker does not move -- and nothing
+// moves again over the next second (the countdown re-renders the tile every
+// tick), so the two do not chase each other. A dragged timer is the user's:
+// it stays under a sticker dropped on it, and that overlap is caught.
+{
+  const pillBox = () => page.evaluate(() => { const q = document.querySelector(".tile__pill").getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height }; });
+  const stickerBox = (id) => page.evaluate((id) => { const q = document.querySelector(`.sticker[data-sticker="${id}"]`).getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height }; }, id);
+  const dropOnTimer = (id, holder) => page.evaluate(([id, holder]) => {
+    const st = window.__store.getState();
+    st.giveSticker(id, holder);
+    const q = document.querySelector(".tile__pill").getBoundingClientRect();
+    const b = document.querySelector(".board").getBoundingClientRect();
+    st.placeSticker(id, { x: (q.left + q.width / 2 - b.left) / b.width, y: (q.top + q.height / 2 - b.top) / b.height, scale: 1 });
+    const s = window.__store.getState().game.stickers.find((t) => t.id === id);
+    return { x: s.x, y: s.y, holder: s.holder };
+  }, [id, holder]);
+  await page.evaluate(async (src) => {
+    const { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats } = await import(`${src}layout/freeform.ts`);
+    const st = window.__store.getState();
+    st.newGame({ playerCount: 4, startingLife: 40 });
+    st.applyFreeform(buildFreeLayout(templateSeats(BUILTIN_TEMPLATES.find((t) => t.id === "x"))), ["p0", "p1", "p2", "p3"]);
+  }, layoutSrc);
+  await page.waitForTimeout(400);
+  for (const mode of ["drag", "corner"])
+    for (const pid of ["p0", "p1", "p2", "p3"]) {
+      const label = `09 timer ${mode} ${pid}`;
+      await page.evaluate(([mode, pid]) => {
+        const st = window.__store.getState();
+        for (const id of ["monarch", "initiative", "blessing", "ring"]) st.giveSticker(id, null);
+        st.updateSettings({ turnTimerEnabled: true, turnTimerPlacement: mode });
+        st.setActivePlayer(pid);
+      }, [mode, pid]);
+      await page.waitForTimeout(300);
+      const was = await pillBox();
+      const put = await dropOnTimer("monarch", pid);
+      await settle();
+      const pill = await pillBox();
+      const me = await stickerBox("monarch");
+      const s1 = await state();
+      const now = s1.game.stickers.find((t) => t.id === "monarch");
+      const seatBad = problems(await measureSeat(pid));
+      const polys = await sheetRect();
+      check(
+        put.holder === pid && ov(was, me) && !ov(pill, me) && boxIn(polys[pid], pill) && seatBad.length === 0 && now.x === put.x && now.y === put.y,
+        `${label}: sticker dropped on the timer (was on it: ${ov(was, me)}) stays put (${now.x === put.x && now.y === put.y}); timer moves off it (${!ov(pill, me)}), inside its cell, ${seatBad.join(", ") || "clear"}`,
+      );
+      // Over the next second (a countdown tick or two): nothing moves.
+      await page.waitForTimeout(1100);
+      const pill2 = await pillBox();
+      const now2 = (await state()).game.stickers.find((t) => t.id === "monarch");
+      const still = Math.abs(pill2.x - pill.x) < 0.5 && Math.abs(pill2.y - pill.y) < 0.5 && now2.x === now.x && now2.y === now.y;
+      check(still, `${label}: a second later the timer and sticker are where they were (${still})`);
+      if (pid === "p1") await page.screenshot({ path: `${OUT}/09-timer-${mode}-${pid}.png` });
+    }
+  // Control: a dragged timer stays under a sticker dropped on it; caught.
+  await page.evaluate(() => {
+    const st = window.__store.getState();
+    for (const id of ["monarch", "initiative", "blessing", "ring"]) st.giveSticker(id, null);
+    st.updateSettings({ turnTimerEnabled: true, turnTimerPlacement: "drag" });
+    st.setActivePlayer("p1");
+    st.setTimerPos("p1", { x: 50, y: 30 });
+  });
+  await page.waitForTimeout(300);
+  const was = await pillBox();
+  await dropOnTimer("monarch", "p1");
+  await settle();
+  const pill = await pillBox();
+  const me = await stickerBox("monarch");
+  check(Math.abs(pill.x - was.x) < 0.5 && Math.abs(pill.y - was.y) < 0.5 && ov(pill, me), `09 control: a dragged timer stays put under a sticker dropped on it (overlap caught: ${ov(pill, me)})`);
+  await page.screenshot({ path: `${OUT}/09-timer-dragged-control.png` });
+  // And after a layout change the stickers settle and the timer follows,
+  // once: a turned seat with a sticker by the timer, then a second of quiet.
+  await page.evaluate(() => {
+    const st = window.__store.getState();
+    st.giveSticker("monarch", null);
+    st.setTimerPos("p1", {});
+  });
+  await page.waitForTimeout(300);
+  await dropOnTimer("monarch", "p1");
+  await page.evaluate(() => { const st = window.__store.getState(); const c = st.game.layout.cells.find((q) => q.playerId === "p1"); st.setSeatRotation("p1", (c.rotation + 180) % 360); });
+  await page.waitForTimeout(700);
+  const a = { pill: await pillBox(), st: (await state()).game.stickers.find((t) => t.id === "monarch") };
+  await page.waitForTimeout(1100);
+  const b2 = { pill: await pillBox(), st: (await state()).game.stickers.find((t) => t.id === "monarch") };
+  const me2 = await stickerBox("monarch");
+  const calm = Math.abs(a.pill.x - b2.pill.x) < 0.5 && Math.abs(a.pill.y - b2.pill.y) < 0.5 && a.st.x === b2.st.x && a.st.y === b2.st.y;
+  check(calm && !ov(b2.pill, me2), `09 after a turned seat: timer and sticker settle apart (${!ov(b2.pill, me2)}) and stay (${calm})`);
+}
 check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
 await b.close();
