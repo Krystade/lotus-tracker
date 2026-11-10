@@ -48,6 +48,22 @@ export function faceFrame(face: Box, rotation: number) {
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
 /**
+ * Does a w×h box centred on `c` lie wholly inside the convex `poly` and
+ * touch none of `blocks`? (clearSpot's own test, with no margin: is
+ * something that is already there in the way.)
+ */
+export function fitsAt(poly: Pt[], blocks: Box[], w: number, h: number, c: Pt): boolean {
+  if (poly.length < 3) return false;
+  const E = halfPlanes(poly);
+  const x0 = c.x - w / 2;
+  const y0 = c.y - h / 2;
+  for (const [x, y] of [[x0, y0], [x0 + w, y0], [x0, y0 + h], [x0 + w, y0 + h]])
+    if (!E.every((e) => e.mx * x + e.my * y - e.k >= -0.5)) return false;
+  const me = { x: x0, y: y0, w, h };
+  return !blocks.some((b) => overlaps(me, b));
+}
+
+/**
  * Centre for a w×h element inside the convex `poly`, clear of `blocks`.
  * `prefer` (its usual spot) wins if it already fits; otherwise the nearest
  * fitting point on a 4px grid. null when nothing fits (keep the usual spot).

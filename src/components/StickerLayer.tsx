@@ -2,8 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { useStore } from "../state/store";
 import { MAX_SCALE, MIN_SCALE, seatAt, stickerDef } from "../game/stickers";
 import type { StickerHold } from "../state/types";
+import { refitStickers } from "./stickerSpot";
 
 const MOVE_THRESHOLD = 6;
+// After a layout change: Board's seat slide (SLIDE_MS) and a little more.
+const REFIT_MS = 250;
 
 /**
  * Stickers float over the whole board, wherever the table puts them. Each one
@@ -11,6 +14,22 @@ const MOVE_THRESHOLD = 6;
  */
 export function StickerLayer({ boardRef }: { boardRef: React.RefObject<HTMLDivElement> }) {
   const stickers = useStore((s) => s.game.stickers);
+  // A freeform layout change can leave a sticker outside its holder's cell
+  // or on its number: once the new board has drawn (and any seat slide has
+  // finished), re-place just those. Not on load: a saved board stays as it was.
+  const layout = useStore((s) => s.game.layout);
+  const seen = useRef(layout);
+  useEffect(() => {
+    if (seen.current === layout) return;
+    seen.current = layout;
+    if (!layout.cells?.length) return;
+    const t = window.setTimeout(() => {
+      const s = useStore.getState();
+      if (s.game.layout !== layout) return;
+      for (const m of refitStickers(layout, s.game.stickers)) s.placeSticker(m.id, m);
+    }, REFIT_MS);
+    return () => window.clearTimeout(t);
+  }, [layout]);
   return (
     <div className="stickers" aria-hidden={stickers.length === 0}>
       {stickers.map((st) => (

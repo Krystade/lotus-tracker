@@ -440,6 +440,135 @@ const want = await page.evaluate(() => {
 });
 check(pg.rows === want && pg.note === null, `Customize on a grid layout opens on it, no note (${pg.rows} vs ${want}, note ${pg.note})`);
 await page.getByRole("button", { name: "close" }).tap();
+// ---- a layout change re-places only the stickers it left somewhere bad ----
+// A template, Edit layout, a turned seat or a seat added / removed keeps
+// each sticker's board spot (or moves it by its seat's grid stand-in), so on
+// polygon cells one can end up outside its holder's cell or on its number.
+// Two frames after each change (before the re-place runs) every sticker is
+// classified as stickerProblems does, in the page; once settled, every one
+// must be clear, and every one that was already clear must not have moved.
+await page.evaluate(() => {
+  window.__stickerBad = () => {
+    const g = window.__store.getState().game;
+    const box = (el) => { const q = el.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height }; };
+    const text = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); return box(rg); };
+    const ov = (a, b) => a.x < b.x + b.w - 0.5 && a.x + a.w > b.x + 0.5 && a.y < b.y + b.h - 0.5 && a.y + a.h > b.y + 0.5;
+    const inPoly = (poly, x, y) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    };
+    const out = {};
+    for (const st of g.stickers) {
+      const el = document.querySelector(`.sticker[data-sticker="${st.id}"]`);
+      const tile = document.querySelector(`.tile[data-pid="${st.holder}"]`);
+      const me = box(el);
+      const bad = [];
+      const r = tile.getBoundingClientRect();
+      const m = /polygon\((.*)\)/.exec(tile.style.clipPath);
+      const poly = m ? m[1].split(",").map((p) => { const [x, y] = p.trim().split(/\s+/).map(parseFloat); return [r.left + x, r.top + y]; }) : [];
+      if (![[me.x, me.y], [me.x + me.w, me.y], [me.x, me.y + me.h], [me.x + me.w, me.y + me.h]].every(([x, y]) => inPoly(poly, x, y)))
+        bad.push(`outside ${st.holder}'s cell`);
+      const blocks = [
+        ["number", text(tile.querySelector(".tile__life"))],
+        ...[...tile.querySelectorAll(".tile__sign")].map((q) => [q.textContent, text(q)]),
+        ["⋯", box(tile.querySelector(".tile__more"))],
+        ...[...tile.querySelectorAll(".tile__pill")].map((p) => ["timer", box(p)]),
+        ...[".center__hex", ".center__clock"].map((q) => document.querySelector(q)).filter(Boolean).map((e) => [e.className, box(e)]),
+        ...[...document.querySelectorAll(".sticker")].filter((q) => q !== el).map((q) => [q.dataset.sticker, box(q)]),
+      ];
+      for (const [name, b] of blocks) if (ov(me, b)) bad.push(`on ${name}`);
+      out[st.id] = { holder: st.holder, x: st.x, y: st.y, bad };
+    }
+    return out;
+  };
+  window.__store.subscribe((s, prev) => {
+    if (s.game.layout === prev.game.layout) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => { window.__preRefit = window.__stickerBad(); }));
+  });
+});
+const layoutSrc = new URL("src/", BASE).pathname;
+async function refitCase(label, change) {
+  await page.evaluate(() => { window.__preRefit = null; });
+  await change();
+  await page.waitForFunction(() => window.__preRefit);
+  await page.waitForTimeout(600);
+  const pre = await page.evaluate(() => window.__preRefit);
+  const post = await page.evaluate(() => window.__stickerBad());
+  const badBefore = Object.entries(pre).filter(([, v]) => v.bad.length);
+  const stillBad = Object.entries(post).filter(([, v]) => v.bad.length);
+  const moved = Object.entries(pre).filter(([id, v]) => !v.bad.length && (post[id].x !== v.x || post[id].y !== v.y));
+  const list = (es) => es.map(([id, v]) => `${id} ${v.bad.join("/")}`).join("; ");
+  check(stillBad.length === 0, `${label}: every sticker inside its cell and clear after the re-place (left badly: ${list(badBefore) || "none"})${stillBad.length ? " -- still: " + list(stillBad) : ""}`);
+  check(moved.length === 0, `${label}: the ${Object.keys(pre).length - badBefore.length} already clear stayed exactly put${moved.length ? " -- moved: " + moved.map(([id]) => id).join(", ") : ""}`);
+  await page.screenshot({ path: `${OUT}/${label}.png` });
+  return badBefore.length;
+}
+{
+  // An X with a sticker per seat from the menu.
+  await page.evaluate(async (src) => {
+    const { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats } = await import(`${src}layout/freeform.ts`);
+    const st = window.__store.getState();
+    st.newGame({ playerCount: 4, startingLife: 40 });
+    st.updateSettings({ turnTimerEnabled: true, turnTimerPlacement: "drag" });
+    st.applyFreeform(buildFreeLayout(templateSeats(BUILTIN_TEMPLATES.find((t) => t.id === "x"))), ["p0", "p1", "p2", "p3"]);
+  }, layoutSrc);
+  if (await page.locator(".overlay").count()) await page.getByRole("button", { name: "close" }).tap();
+  await page.waitForTimeout(400);
+  const ids = Object.keys(STICKER_NAMES);
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate((id) => window.__store.getState().setActivePlayer(id), `p${i}`);
+    await settle();
+    await addStickerFromMenu(ids[i]);
+  }
+  await page.evaluate(() => window.__store.getState().setActivePlayer("p1"));
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/08-refit-start.png` });
+  let left = 0;
+  const tpl = (id) => () => page.evaluate(async ([src, id]) => {
+    const { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats } = await import(`${src}layout/freeform.ts`);
+    window.__store.getState().applyFreeform(buildFreeLayout(templateSeats(BUILTIN_TEMPLATES.find((t) => t.id === id))), ["p0", "p1", "p2", "p3"]);
+  }, [layoutSrc, id]);
+  left += await refitCase("08-refit-template-grid", tpl("grid"));
+  left += await refitCase("08-refit-template-x", tpl("x"));
+  left += await refitCase("08-refit-turn-p1", () => page.evaluate(() => {
+    const st = window.__store.getState();
+    const c = st.game.layout.cells.find((q) => q.playerId === "p1");
+    st.setSeatRotation("p1", (c.rotation + 180) % 360);
+  }));
+  left += await refitCase("08-refit-edit-add", async () => {
+    await openEditor();
+    await page.locator(".fe-fab").tap();
+    await page.getByRole("button", { name: "confirm layout" }).tap();
+  });
+  left += await refitCase("08-refit-edit-remove", async () => {
+    await openEditor();
+    await page.locator(".fe-badge--del").nth(1).tap();
+    await page.getByRole("button", { name: "confirm layout" }).tap();
+  });
+  check(left > 0, `refit cases left ${left} stickers badly placed before the re-place (0 would prove nothing)`);
+  // Control: a sticker dragged onto a number with no layout change is the
+  // user's choice -- left there, and the classifier above calls it bad.
+  const ctl = await page.evaluate(() => {
+    const st = window.__store.getState();
+    const s0 = st.game.stickers[0];
+    const tile = document.querySelector(`.tile[data-pid="${s0.holder}"]`);
+    const b = document.querySelector(".board").getBoundingClientRect();
+    const rg = document.createRange();
+    rg.selectNodeContents(tile.querySelector(".tile__life"));
+    const q = rg.getBoundingClientRect();
+    st.placeSticker(s0.id, { x: (q.left + q.width / 2 - b.left) / b.width, y: (q.top + q.height / 2 - b.top) / b.height, scale: 1 });
+    const now = window.__store.getState().game.stickers.find((s) => s.id === s0.id);
+    return { id: s0.id, x: now.x, y: now.y };
+  });
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => window.__stickerBad());
+  const c = after[ctl.id];
+  check(c.x === ctl.x && c.y === ctl.y && c.bad.includes("on number"), `refit control: ${ctl.id} dragged onto its number with no layout change stays (${c.x === ctl.x && c.y === ctl.y}) and is caught (${c.bad.join("/") || "nothing"})`);
+}
 check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
 await b.close();
