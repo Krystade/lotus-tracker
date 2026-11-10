@@ -324,7 +324,30 @@ await stickerCheck("03x");
   await page.evaluate(() => { const st = window.__store.getState(); for (const id of ["monarch", "initiative", "blessing", "ring"]) st.giveSticker(id, null); });
 }
 
-// ---- turn order: clockwise top → right → bottom → left ----
+// ---- Customize opens on the X's nearest grid, and says so ----
+// The painter's squares are coloured by seat: read them back as seat
+// numbers via the palette swatches' colours.
+async function painterGrid() {
+  return page.evaluate(() => {
+    const sw = [...document.querySelectorAll(".palette__swatch:not(.palette__erase)")].slice(0, 6).map((b) => getComputedStyle(b).backgroundColor);
+    const g = document.querySelector(".editor__grid");
+    const cols = getComputedStyle(g).gridTemplateColumns.split(" ").length;
+    const cells = [...g.querySelectorAll(".editor__cell")].map((c) => sw.indexOf(getComputedStyle(c).backgroundColor));
+    const rows = [];
+    for (let i = 0; i < cells.length; i += cols) rows.push(cells.slice(i, i + cols).join(""));
+    return { rows: rows.join("/"), note: document.querySelector(".editor__note")?.textContent ?? null };
+  });
+}
+await page.locator(".center__hex").tap();
+await page.getByRole("button", { name: "▦ Layout" }).tap();
+await page.getByRole("button", { name: "Customize" }).tap();
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${OUT}/03x-customize.png` });
+let pg = await painterGrid();
+check(pg.rows === "00/31/31/22", `Customize opens on the X's nearest grid, top / left+right / bottom (${pg.rows})`);
+check(!!pg.note && /nearest grid/.test(pg.note), `and says it is the nearest grid (${pg.note})`);
+await page.getByRole("button", { name: "close" }).tap();
+
 await page.evaluate(() => {
   const st = window.__store.getState();
   st.setActivePlayer("p0");
@@ -402,6 +425,21 @@ await page.locator(".center__hex").tap();
 await page.getByRole("button", { name: "▦ Layout" }).tap();
 await page.locator(".preset").filter({ hasText: /4/ }).first().tap().catch(() => {});
 s = await state();
+// A grid layout: Customize opens on it as it is, with no note.
+await page.evaluate(() => window.__store.getState().newGame({ playerCount: 4, startingLife: 40 }));
+if (await page.locator(".overlay").count()) await page.getByRole("button", { name: "close" }).tap();
+await page.locator(".center__hex").tap();
+await page.getByRole("button", { name: "▦ Layout" }).tap();
+await page.getByRole("button", { name: "Customize" }).tap();
+pg = await painterGrid();
+const want = await page.evaluate(() => {
+  const l = window.__store.getState().game.layout;
+  const g = Array.from({ length: l.rows }, () => Array(l.cols).fill(-1));
+  for (const p of l.placements) for (let r = p.row - 1; r < p.row - 1 + p.rowSpan; r++) for (let c = p.col - 1; c < p.col - 1 + p.colSpan; c++) g[r][c] = Number(p.playerId.slice(1));
+  return g.map((r) => r.join("")).join("/");
+});
+check(pg.rows === want && pg.note === null, `Customize on a grid layout opens on it, no note (${pg.rows} vs ${want}, note ${pg.note})`);
+await page.getByRole("button", { name: "close" }).tap();
 check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
 await b.close();

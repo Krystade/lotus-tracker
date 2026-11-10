@@ -3,7 +3,7 @@ import { useStore } from "../state/store";
 import { colorForSeat } from "../layout/colors";
 import { allBuiltInPresets } from "../layout/presets";
 import type { LayoutConfig, Placement, Rotation } from "../state/types";
-import { BUILTIN_TEMPLATES, buildFreeLayout, templateSeats, toPts } from "../layout/freeform";
+import { BUILTIN_TEMPLATES, buildFreeLayout, gridApprox, templateSeats, toPts } from "../layout/freeform";
 import { defaultLayoutFor } from "../layout/presets";
 import { useLayoutEdit } from "./layoutEdit";
 import { Thumb } from "./FreeformEditor";
@@ -188,8 +188,13 @@ function CustomEditor({
   onSave: (name: string, l: LayoutConfig) => void;
 }) {
   const live = useStore((s) => s.game.layout);
-  // A freeform layout has no grid to paint on: start from the preset.
-  const current = live.cells ? defaultLayoutFor(live.playerCount) : live;
+  // The painter only paints rectangles. A freeform layout opens on the grid
+  // closest to its cells (the preset if no grid keeps every seat whole).
+  const [{ current, approx }] = useState(() => {
+    if (!live.cells) return { current: live, approx: null };
+    const g = gridApprox(live);
+    return { current: g ?? defaultLayoutFor(live.playerCount), approx: g ? ("grid" as const) : ("preset" as const) };
+  });
   const [rows, setRows] = useState(current.rows);
   const [cols, setCols] = useState(current.cols);
   const [paint, setPaint] = useState(0);
@@ -300,6 +305,13 @@ function CustomEditor({
 
   return (
     <div className="editor">
+      {approx && (
+        <p className="panel__sublabel editor__note">
+          {approx === "grid"
+            ? "Your layout is freeform; this is the nearest grid. Apply replaces it with the grid -- to keep its shape, use Edit layout."
+            : "Your layout is freeform and no grid matches it; this is the standard layout. To keep its shape, use Edit layout."}
+        </p>
+      )}
       <div className="editor__row">
         <span>Rows</span>
         <Stepper value={rows} min={1} max={Math.max(4, rows)} onChange={(v) => resize(v, cols)} />

@@ -291,3 +291,77 @@ export function polyGeoms(cells: LayoutCell[], W: number, H: number): Map<string
   }
   return out;
 }
+
+/** Is (x, y) inside the polygon? Even-odd rule. */
+function insidePoly(poly: Pt[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * The plain grid closest to a freeform layout, for the Customize painter,
+ * which only paints rectangles on a small grid. Every grid up to the
+ * painter's usual 4 rows x 3 columns is tried: each square goes to the cell
+ * covering most of it (sampled), and a grid counts only if every seat ends
+ * up one solid rectangle. The one agreeing with the cells over the most of
+ * the board wins, the coarser on a tie -- an X comes out 4 x 2: a seat
+ * across the top, two side by side, one across the bottom, a quarter each. null when no grid
+ * keeps every seat a rectangle. Seats keep their ids and facings.
+ */
+export function gridApprox(layout: LayoutConfig, maxRows = 4, maxCols = 3): LayoutConfig | null {
+  const cells = layout.cells;
+  if (!cells?.length) return null;
+  const polys = cells.map((c) => toPts(c.poly));
+  const n = cells.length;
+  const S = 6;
+  let best: { rows: number; cols: number; grid: number[][]; score: number } | null = null;
+  for (let rows = 1; rows <= maxRows; rows++)
+    for (let cols = 1; cols <= maxCols; cols++) {
+      if (rows * cols < n) continue;
+      let score = 0;
+      const grid: number[][] = [];
+      for (let r = 0; r < rows; r++) {
+        grid.push([]);
+        for (let c = 0; c < cols; c++) {
+          const hits = new Array<number>(n).fill(0);
+          for (let i = 0; i < S; i++)
+            for (let j = 0; j < S; j++) {
+              const k = polys.findIndex((p) => insidePoly(p, (c + (i + 0.5) / S) / cols, (r + (j + 0.5) / S) / rows));
+              if (k >= 0) hits[k]++;
+            }
+          const k = hits.indexOf(Math.max(...hits));
+          grid[r].push(k);
+          score += hits[k] / (S * S * rows * cols);
+        }
+      }
+      const solid = cells.every((_, k) => {
+        let r0 = Infinity, r1 = -1, c0 = Infinity, c1 = -1;
+        grid.forEach((row, r) => row.forEach((v, c) => {
+          if (v !== k) return;
+          r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+        }));
+        if (r1 < 0) return false;
+        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (grid[r][c] !== k) return false;
+        return true;
+      });
+      if (!solid) continue;
+      if (!best || score > best.score + 1e-9 || (Math.abs(score - best.score) <= 1e-9 && rows * cols < best.rows * best.cols))
+        best = { rows, cols, grid, score };
+    }
+  if (!best) return null;
+  const { rows, cols, grid } = best;
+  const placements: Placement[] = cells.map((cell, k) => {
+    let r0 = Infinity, r1 = -1, c0 = Infinity, c1 = -1;
+    grid.forEach((row, r) => row.forEach((v, c) => {
+      if (v !== k) return;
+      r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+    }));
+    return { playerId: cell.playerId, row: r0 + 1, col: c0 + 1, rowSpan: r1 - r0 + 1, colSpan: c1 - c0 + 1, rotation: cell.rotation };
+  });
+  return { id: `${layout.id}-grid`, name: layout.name, playerCount: n, rows, cols, placements, builtIn: false };
+}
