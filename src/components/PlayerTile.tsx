@@ -337,18 +337,31 @@ function gridPill(rotation: Rotation, content: HTMLElement): { x: number; y: num
 // Air between a + / − glyph's ink and the corner disc's rim, so a pressed
 // glyph (scaled 1.15) still clears it.
 const SIGN_DISC_GAP = 6;
+// A slid glyph's tap zone reaches this far past its ink, toward the number.
+const SIGN_ZONE_PAD = 14;
+// The + / − zones' CSS width (styles.css .tile__adj), as a share of the tile.
+const ADJ_ZONE = 0.32;
+
+/** Per glyph [minus, plus]: how far it slides (px) and how wide its zone must grow to (px, 0 = as styled). */
+interface SignShift {
+  shift: [number, number];
+  zone: [number, number];
+}
 
 /**
  * Corner mode on a grid tile: the corner disc sits over the tile's corner,
  * and on a narrow tile its rim covers the + or − glyph there. Slide each
  * covered glyph along the tile (its own x) away from the disc -- toward the
- * number -- until its ink clears the rim. Only the glyph moves; its tap zone
- * stays put. Everything is in the content box's own frame: offsetLeft/Top
- * ignore transforms, so neither the button's translateY(-50%) nor a shift
- * already applied feeds back into the measurement. [minus, plus] px, or
- * null when nothing is covered.
+ * number -- until its ink clears the rim. The glyph's tap zone keeps its
+ * outer edge but grows toward the number to take the slid glyph in (a big
+ * disc slides it right out of the usual 32%); the disc is drawn over the
+ * zone, so a tap on the disc still passes the turn. Everything is in the
+ * content box's own frame: offsetLeft/Top ignore transforms, so neither the
+ * button's translateY(-50%) nor a shift already applied feeds back into the
+ * measurement, and the zone's width is reckoned from the tile, not from the
+ * already-grown button. null when nothing is covered.
  */
-function signShifts(content: HTMLElement): [number, number] | null {
+function signShifts(content: HTMLElement): SignShift | null {
   const pillEl = content.querySelector<HTMLElement>(".tile__pill--corner");
   if (!pillEl || pillEl.offsetParent !== content) return null;
   const sw = content.offsetWidth;
@@ -363,6 +376,7 @@ function signShifts(content: HTMLElement): [number, number] | null {
   const rad = Math.min(pw, ph) + SIGN_DISC_GAP;
   if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
   const out: [number, number] = [0, 0];
+  const zone: [number, number] = [0, 0];
   content.querySelectorAll<HTMLElement>(".tile__adj").forEach((btn) => {
     const g = btn.querySelector<HTMLElement>(".tile__sign");
     const i = btn.classList.contains("tile__adj--plus") ? 1 : 0;
@@ -393,12 +407,18 @@ function signShifts(content: HTMLElement): [number, number] | null {
     const fitsL = x0 + toLeft >= 0;
     const fitsR = x1 + toRight <= sw;
     out[i] = fitsL && (!fitsR || -toLeft <= toRight) ? toLeft : fitsR ? toRight : 0;
+    const s = Math.round(out[i]);
+    // − hugs the left edge, + the right; the zone must reach the slid ink's
+    // inner side plus a fingertip, and never past the other zone's usual edge.
+    const reach = i === 0 ? x1 + s + SIGN_ZONE_PAD : sw - (x0 + s) + SIGN_ZONE_PAD;
+    if (s && reach > ADJ_ZONE * sw) zone[i] = Math.round(Math.min(reach, (1 - ADJ_ZONE) * sw));
   });
-  return out[0] || out[1] ? [Math.round(out[0]), Math.round(out[1])] : null;
+  return out[0] || out[1] ? { shift: [Math.round(out[0]), Math.round(out[1])], zone } : null;
 }
 
-const sameShift = (a: [number, number] | null, b: [number, number] | null) =>
-  a === b || (!!a && !!b && a[0] === b[0] && a[1] === b[1]);
+const sameShift = (a: SignShift | null, b: SignShift | null) =>
+  a === b ||
+  (!!a && !!b && a.shift[0] === b.shift[0] && a.shift[1] === b.shift[1] && a.zone[0] === b.zone[0] && a.zone[1] === b.zone[1]);
 
 export function PlayerTile({
   placement,
@@ -444,7 +464,7 @@ export function PlayerTile({
   const autoPill = cell ? pinnedToCorner || player?.timerPos?.x === undefined : !pinnedToCorner && player?.timerPos?.x === undefined;
   const [spots, setSpots] = useState<PolySpots | null>(null);
   // Corner mode: how far each + / − glyph slides clear of the corner disc.
-  const [signShift, setSignShift] = useState<[number, number] | null>(null);
+  const [signShift, setSignShift] = useState<SignShift | null>(null);
   const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
   const pill = usePillGesture({
     pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
@@ -650,16 +670,18 @@ export function PlayerTile({
         <button
           className="tile__adj tile__adj--minus"
           aria-label={`${player.name} decrease life`}
+          style={signShift?.zone[0] ? { width: signShift.zone[0] } : undefined}
           {...minus}
         >
-          <span className="tile__sign" style={signShift?.[0] ? { translate: `${signShift[0]}px 0` } : undefined}>–</span>
+          <span className="tile__sign" style={signShift?.shift[0] ? { translate: `${signShift.shift[0]}px 0` } : undefined}>–</span>
         </button>
         <button
           className="tile__adj tile__adj--plus"
           aria-label={`${player.name} increase life`}
+          style={signShift?.zone[1] ? { width: signShift.zone[1] } : undefined}
           {...plus}
         >
-          <span className="tile__sign" style={signShift?.[1] ? { translate: `${signShift[1]}px 0` } : undefined}>+</span>
+          <span className="tile__sign" style={signShift?.shift[1] ? { translate: `${signShift.shift[1]}px 0` } : undefined}>+</span>
         </button>
 
         <div
